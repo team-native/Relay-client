@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 
 const NAV_ITEMS = [
   { label: '홈', path: '/' },
@@ -18,10 +18,10 @@ export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
   return (
     <header className="flex items-center justify-between px-8 h-16 border-b border-gray-200 bg-white">
       <div className="flex items-center gap-10">
-        <div className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2">
           <img src="/logo.png" alt="Relay+" className="w-9 h-9" />
           <span className="font-bold text-lg">Relay+</span>
-        </div>
+        </Link>
 
         <nav className="flex items-center gap-8 h-16">
           {NAV_ITEMS.map((item) => (
@@ -67,9 +67,13 @@ export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
           </div>
         )}
 
-        <div className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-semibold">
+        <Link
+          to="/mypage"
+          aria-label="마이페이지"
+          className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-semibold"
+        >
           양
-        </div>
+        </Link>
       </div>
     </header>
   );
