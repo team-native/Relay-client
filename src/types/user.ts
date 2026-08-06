@@ -1,3 +1,5 @@
+import type { StudyStatus } from './study';
+
 export interface UserProfile {
   name: string;
   email: string;
@@ -8,6 +10,6 @@ export interface UserProfile {
 export interface EnrolledCourse {
   id: string;
   title: string;
-  status: '개설미정' | '개설확정' | '종료';
+  status: StudyStatus;
   scheduledAt: string;
 }

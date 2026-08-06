@@ -23,7 +23,8 @@ export default function ProfileEditPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  // 업로드 API 연동 전까지는 선택한 파일을 보관만 해요.
+  const [_avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   useEffect(() => {
