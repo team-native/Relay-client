@@ -21,7 +21,7 @@ export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
     <header className="flex items-center justify-between px-8 h-16 border-b border-gray-200 bg-white">
       <div className="flex items-center gap-10">
         <Link to="/" className="flex items-center gap-2">
-          <img src="/logo.png" alt="Relay+" className="w-9 h-9" />
+          <img src="/relay.png" alt="Relay+" className="w-9 h-9" />
           <span className="font-bold text-lg">Relay+</span>
         </Link>
 
