@@ -18,4 +18,4 @@ jobs:
           script: |
             cd ~/relayplus
             git -C Relay-client pull
-            docker-compose up -d --build frontend
+            docker compose up -d --build frontend
