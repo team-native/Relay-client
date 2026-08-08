@@ -89,6 +89,7 @@ export default function PasswordChangePage() {
           name="confirmPassword"
           value={form.confirmPassword}
           onChange={handleChange}
+          placeholder="입력했던 비밀번호를 다시 입력해주세요."
           className={`w-full border rounded-lg px-4 py-2.5 focus:outline-none focus:ring-1 ${
             isMismatch
               ? 'border-red-300 bg-red-50 focus:ring-red-300'

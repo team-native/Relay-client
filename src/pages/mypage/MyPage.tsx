@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Pencil, Lock, LogOut, Calendar } from 'lucide-react';
 import { getMyProfile, getEnrolledCourses } from '../../api/userApi';
+import { STATUS_BADGE_STYLES } from '../../constants/studyStatus';
+import { useAuth } from '../../context/AuthContext';
 import type { UserProfile, EnrolledCourse } from '../../types/user';
-
-const STATUS_STYLES: Record<EnrolledCourse['status'], string> = {
-  개설미정: 'bg-white text-black border border-[#D9D9D9]',
-  개설확정: 'bg-[#FFDD86] text-black border border-[#D9D9D9]',
-  종료: 'bg-[#D9D9D9] text-black border border-[#BCBCBC]',
-};
 
 const SETTINGS_ITEMS = [
   { icon: Pencil, label: '프로필 수정', path: '/mypage/profile' },
@@ -20,6 +16,9 @@ export default function MyPage() {
   const [courses, setCourses] = useState<EnrolledCourse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   useEffect(() => {
     async function fetchAll() {
@@ -40,7 +39,8 @@ export default function MyPage() {
   }, []);
 
   function handleLogout() {
-    console.log('logout clicked');
+    logout();
+    navigate('/');
   }
 
   if (isLoading) return <p className="text-gray-500">불러오는 중...</p>;
@@ -69,15 +69,15 @@ export default function MyPage() {
       <div className="grid grid-cols-3 gap-4">
         {courses.map((course) => (
           <div key={course.id} className="bg-white border border-gray-200 rounded-xl p-4">
-            <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_STYLES[course.status]}`}>
+            <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_BADGE_STYLES[course.status]}`}>
               {course.status}
             </span>
             <p className="font-semibold mt-2">{course.title}</p>
             <div className="flex items-center gap-1.5 text-sm text-gray-400 mt-2">
-            <Calendar className="w-3.5 h-3.5 shrink-0" strokeWidth={1.8} />
-            {course.scheduledAt}
+              <Calendar className="w-3.5 h-3.5 shrink-0" strokeWidth={1.8} />
+              {course.scheduledAt}
             </div>
-        </div>
+          </div>
         ))}
       </div>
 
