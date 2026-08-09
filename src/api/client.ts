@@ -12,26 +12,27 @@ apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const requestUrl = config.url ?? '';
 
-    // 로그인하지 않은 상태에서도 접근해야 하는 인증 API
-    const isAuthRequest =
-      requestUrl.includes('/api/auth/login') ||
-      requestUrl.includes('/api/auth/signup') ||
-      requestUrl.includes('/api/auth/email/send') ||
-      requestUrl.includes('/api/auth/email/verify') ||
-      requestUrl.includes('/api/auth/reissue');
+    const isPublicAuthApi =
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/signup') ||
+      requestUrl.includes('/auth/email/send') ||
+      requestUrl.includes('/auth/email/verify') ||
+      requestUrl.includes('/auth/reissue');
 
-    if (!isAuthRequest) {
-      const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (isPublicAuthApi) {
+      delete config.headers.Authorization;
+      return config;
+    }
 
-      if (accessToken) {
-        config.headers.Authorization = `Bearer ${accessToken}`;
-      }
+    const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
 
     return config;
   }
 );
-
 let refreshPromise: Promise<string | null> | null = null;
 
 apiClient.interceptors.response.use(
