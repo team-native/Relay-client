@@ -6,7 +6,7 @@ import { mockDelay } from '../mocks/delay';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 export async function getMyProfile(): Promise<UserProfile> {
-  if (USE_MOCK) return mockProfile;
+  if (USE_MOCK) return mockDelay(mockProfile);
 
   const res = await apiClient.get<UserProfile>('/api/users/myPage');
   return res.data;
