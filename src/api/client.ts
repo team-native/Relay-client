@@ -83,8 +83,17 @@ apiClient.interceptors.response.use(
     }
 
     if (!refreshPromise) {
-      refreshPromise = apiClient
-        .post('/api/auth/reissue')
+        const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+
+        if (!refreshToken) {
+          removeStoredTokens();
+          return Promise.reject(error);
+        }
+
+        refreshPromise = apiClient
+          .post('/api/auth/reissue', {
+            refreshToken,
+          })
         .then((response) => {
           const data = response.data as {
             accessToken?: string;
