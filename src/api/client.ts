@@ -104,17 +104,23 @@ apiClient.interceptors.response.use(
             };
           };
 
-          const accessToken = data.accessToken ?? data.data?.accessToken ?? null;
-          const refreshToken = data.refreshToken ?? data.data?.refreshToken;
+          const newAccessToken =
+            data.accessToken ?? data.data?.accessToken ?? null;
 
-          if (accessToken) {
-            localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-          }
-          if (refreshToken) {
-            localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+          const newRefreshToken =
+            data.refreshToken ?? data.data?.refreshToken ?? null;
+
+          if (!newAccessToken) {
+            throw new Error('재발급된 accessToken이 없습니다.');
           }
 
-          return accessToken;
+          localStorage.setItem(ACCESS_TOKEN_KEY, newAccessToken);
+
+          if (newRefreshToken) {
+            localStorage.setItem(REFRESH_TOKEN_KEY, newRefreshToken);
+          }
+
+          return newAccessToken;
         })
         .catch(() => {
           removeStoredTokens();
@@ -125,13 +131,14 @@ apiClient.interceptors.response.use(
         });
     }
 
-    const accessToken = await refreshPromise;
+    const newAccessToken = await refreshPromise;
 
-    if (!accessToken) {
+    if (!newAccessToken) {
       return Promise.reject(error);
     }
 
-    originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+    originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
     return apiClient(originalRequest);
   }
 );
