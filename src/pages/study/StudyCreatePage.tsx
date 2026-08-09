@@ -100,6 +100,8 @@ export default function StudyCreatePage() {
 
   const weekday = WEEKDAY_LABELS[new Date(year, month - 1, day).getDay()];
   const pad = (value: number) => String(value).padStart(2, '0');
+
+  // 💡 초(:00) 제거 완료 -> YYYY-MM-DDTHH:mm 형태
   const scheduledAt = `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
 
   async function handleSubmit(e: React.FormEvent) {
@@ -107,6 +109,13 @@ export default function StudyCreatePage() {
 
     if (!title.trim() || !presenter.trim() || !description.trim()) {
       setError('제목, 연사자, 연사 소개를 모두 입력해주세요.');
+      return;
+    }
+
+    // 백엔드 @Future 검증 대비 (선택한 시간이 현재보다 미래인지 사전 체크)
+    const selectedDateTime = new Date(year, month - 1, day, hour, minute);
+    if (selectedDateTime <= new Date()) {
+      setError('연사 날짜와 시간은 현재 시점보다 미래여야 합니다.');
       return;
     }
 
@@ -210,7 +219,7 @@ export default function StudyCreatePage() {
           className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-amber-400"
         />
 
-        {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
+        {error && <p className="text-red-500 text-sm mt-4 font-medium">{error}</p>}
 
         <button
           type="submit"
