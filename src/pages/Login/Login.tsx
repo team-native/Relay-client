@@ -57,30 +57,35 @@ export function Login({ onLoginSubmit }: LoginProps) {
   // 이메일과 비밀번호가 모두 입력되었는지 여부
   const isFormFilled = email.trim().length > 0 && password.trim().length > 0;
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!isFormFilled || isSubmitting) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    setIsSubmitting(true);
-    setErrorMessage("");
+  if (!isFormFilled || isSubmitting) return;
 
-    try {
-      if (onLoginSubmit) {
-        await onLoginSubmit({ email, password });
-      } else {
-        await loginApi({ email, password });
-      }
+  setIsSubmitting(true);
+  setErrorMessage("");
 
-      login();
-      if (navigate) {
-        navigate("/home");
-      }
-    } catch {
-      setErrorMessage("이메일 또는 비밀번호가 일치하지 않습니다.");
-    } finally {
-      setIsSubmitting(false);
+  try {
+    await loginApi({
+      email,
+      password,
+    });
+
+    login();
+
+    if (navigate) {
+      navigate("/home");
     }
-  };
+  } catch (error) {
+    console.error("로그인 실패:", error);
+
+    setErrorMessage(
+      "이메일 또는 비밀번호가 일치하지 않습니다."
+    );
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <div className="min-h-screen w-full bg-[#f8f9fa] flex flex-col items-center justify-center p-4 sm:p-8 font-sans antialiased select-none">
