@@ -17,6 +17,15 @@ export interface SignupPayload {
   name: string;
   email: string;
   password: string;
+  passwordConfirm: string;
+  department: string;
+  cohort: string;
+}
+
+export interface SignupPayload {
+  name: string;
+  email: string;
+  password: string;
   department: string;
   cohort: string;
 }
