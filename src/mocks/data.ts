@@ -158,6 +158,7 @@ export const mockProfile: UserProfile = {
   email: 's26040@gsm.hs.kr',
   department: '스마트IoT과',
   cohort: '10기',
+  enrolledLectures: [],
 };
 
 export const mockCourses: EnrolledCourse[] = [
