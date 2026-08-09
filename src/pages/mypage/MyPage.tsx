@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Pencil, Lock, LogOut, Calendar } from 'lucide-react';
 import { getMyProfile } from '../../api/userApi';
 import { STATUS_BADGE_STYLES } from '../../constants/studyStatus';
+import { getDepartmentLabel } from '../../constants/profileOptions';
 import { useAuth } from '../../context/useAuth';
 import type { UserProfile } from '../../types/user';
 
@@ -58,20 +59,24 @@ export default function MyPage() {
     );
   }
 
-  if (isLoading) return <p className="text-gray-500">불러오는 중...</p>;
-  if (error || !profile) return <p className="text-red-500">{error ?? '정보를 찾을 수 없어요.'}</p>;
+  if (isLoading) return <p className="text-gray-500 py-10 text-center">불러오는 중...</p>;
+  if (error || !profile) return <p className="text-red-500 py-10 text-center">{error ?? '정보를 찾을 수 없어요.'}</p>;
+
+  // 수강 목록 안전하게 바인딩 (enrolledLectures 또는 lectures 대응)
+  const enrolledList = (profile as any).enrolledLectures || (profile as any).lectures || [];
 
   return (
     <div>
       <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-6 py-5">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-gray-900 text-white flex items-center justify-center text-xl font-semibold">
-            {profile.name.charAt(0)}
+            {profile.name ? profile.name.charAt(0) : '사용자'}
           </div>
           <div>
             <p className="font-semibold text-lg">{profile.name}</p>
             <p className="text-sm text-gray-400">
-              {profile.department} · {profile.cohort}
+              {/* SMART_IOT -> 스마트IoT과 로 변환 처리 */}
+              {getDepartmentLabel(profile.department)} · {profile.cohort}
             </p>
           </div>
         </div>
@@ -81,21 +86,21 @@ export default function MyPage() {
       </div>
 
       <h2 className="text-sm font-semibold text-gray-700 mt-8 mb-3">내가 들은 강의</h2>
-      {profile.enrolledLectures.length === 0 ? (
+      {enrolledList.length === 0 ? (
         <p className="bg-white border border-gray-200 rounded-xl py-10 text-center text-sm text-gray-400">
           아직 신청한 릴레이 스터디가 없습니다.
         </p>
       ) : (
         <div className="grid grid-cols-3 gap-4">
-          {profile.enrolledLectures.map((course) => (
+          {enrolledList.map((course: any) => (
             <div key={course.id} className="bg-white border border-gray-200 rounded-xl p-4">
-              <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_BADGE_STYLES[course.status]}`}>
+              <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_BADGE_STYLES[course.status as keyof typeof STATUS_BADGE_STYLES] || 'bg-gray-100 text-gray-600'}`}>
                 {course.status}
               </span>
               <p className="font-semibold mt-2">{course.title}</p>
               <div className="flex items-center gap-1.5 text-sm text-gray-400 mt-2">
                 <Calendar className="w-3.5 h-3.5 shrink-0" strokeWidth={1.8} />
-                {course.scheduledAt}
+                {course.scheduledAt || course.date}
               </div>
             </div>
           ))}
@@ -108,7 +113,7 @@ export default function MyPage() {
           <Link
             key={item.path}
             to={item.path}
-            className="flex items-center justify-between px-6 py-4 hover:bg-gray-50"
+            className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
           >
             <div className="flex items-center gap-3 text-gray-500">
               <item.icon className="w-4 h-4" strokeWidth={1.8} />
@@ -120,7 +125,7 @@ export default function MyPage() {
 
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-6 py-4 hover:bg-gray-50 text-left text-gray-500"
+          className="w-full flex items-center gap-3 px-6 py-4 hover:bg-gray-50 text-left text-gray-500 transition-colors"
         >
           <LogOut className="w-4 h-4" strokeWidth={1.8} />
           <span className="text-sm text-gray-900">로그아웃</span>
