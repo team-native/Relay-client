@@ -31,11 +31,15 @@ export default function ProfileEditPage() {
     async function fetchProfile() {
       try {
         const data = await getMyProfile();
+
+        // 💡 타입 에러 해결: (data as any)로 generation과 cohort 필드 모두 안전하게 탐색
+        const userCohort = String((data as any).generation ?? data.cohort ?? '');
+
         setForm({
-          name: data.name,
-          email: data.email,
-          department: data.department,
-          cohort: data.cohort,
+          name: data.name || '',
+          email: data.email || '',
+          department: data.department || '',
+          cohort: userCohort, // "10" 형태로 들어가서 CustomSelect의 option value와 매칭
         });
       } catch {
         setError('프로필을 불러오지 못했어요.');
@@ -82,7 +86,7 @@ export default function ProfileEditPage() {
     setIsSaving(true);
     setError(null);
     try {
-      // TODO: avatarFile 있으면 별도 업로드 API 호출 (백엔드 스펙 정해지면 이어서 작업)
+      // 💡 타입 에러 해결: UpdateProfilePayload 타입 규격에 들어있는 속성만 전달
       await updateMyProfile({
         name: form.name,
         department: form.department,
@@ -96,7 +100,7 @@ export default function ProfileEditPage() {
     }
   }
 
-  if (isLoading) return <p className="text-gray-500">불러오는 중...</p>;
+  if (isLoading) return <p className="text-gray-500 py-10 text-center">불러오는 중...</p>;
 
   return (
     <div>
@@ -114,7 +118,7 @@ export default function ProfileEditPage() {
               />
             ) : (
               <div className="w-20 h-20 rounded-full bg-gray-900 text-white flex items-center justify-center text-2xl font-semibold">
-                {form.name.charAt(0)}
+                {form.name ? form.name.charAt(0) : '양'}
               </div>
             )}
 
@@ -159,7 +163,7 @@ export default function ProfileEditPage() {
             <CustomSelect
               options={COHORT_OPTIONS}
               value={form.cohort}
-              onChange={(value) => setForm((prev) => ({ ...prev, cohort: value }))}
+              onChange={(value) => setForm((prev) => ({ ...prev, cohort: String(value) }))}
               placeholder="기수를 선택해 주세요."
             />
           </div>
@@ -169,7 +173,7 @@ export default function ProfileEditPage() {
             <CustomSelect
               options={DEPARTMENT_OPTIONS}
               value={form.department}
-              onChange={(value) => setForm((prev) => ({ ...prev, department: value }))}
+              onChange={(value) => setForm((prev) => ({ ...prev, department: String(value) }))}
               placeholder="학과를 선택해 주세요."
             />
           </div>
