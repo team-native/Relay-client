@@ -165,14 +165,15 @@ export function Signup({ onSignupSuccess }: SignupProps) {
         name: name.trim(),
         email: email.trim(),
         password,
+        passwordConfirm,
         department: DEPARTMENT_API_VALUES[major] ?? major,
         cohort: generation,
       });
 
       onSignupSuccess?.();
       navigate("/login");
-    } catch {
-      setSubmitError("회원가입 정보를 다시 확인해주세요.");
+    } catch (error) {
+      setSubmitError(getServerErrorMessage(error, "회원가입에 실패했습니다. 입력한 정보를 확인해주세요."));
     } finally {
       setIsSubmitting(false);
     }
