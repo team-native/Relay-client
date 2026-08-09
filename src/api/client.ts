@@ -13,7 +13,6 @@ const PUBLIC_AUTH_PATHS = [
 ];
 
 const PUBLIC_GET_PATHS = [
-  '/api/studies',
   '/api/notice',
 ];
 
