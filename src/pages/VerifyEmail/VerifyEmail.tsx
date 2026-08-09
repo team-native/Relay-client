@@ -1,12 +1,27 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
-export interface VerifyEmailProps {
-  email: string;
-  onVerifySuccess: () => void;
-  onBack?: () => void;
+interface VerifyEmailLocationState {
+  email?: string;
 }
 
-export function VerifyEmail({ email, onVerifySuccess, onBack }: VerifyEmailProps) {
+export function VerifyEmail() {
+  let navigate: ((path: string, options?: { state?: unknown }) => void) | null = null;
+  try {
+    navigate = useNavigate();
+  } catch {
+    navigate = null;
+  }
+
+  let location: { state?: unknown } | null = null;
+  try {
+    location = useLocation();
+  } catch {
+    location = null;
+  }
+
+  const email = ((location?.state as VerifyEmailLocationState) || {}).email || "";
+
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [otpError, setOtpError] = useState<string>("");
   const [timeLeft, setTimeLeft] = useState<number>(180);
@@ -82,7 +97,7 @@ export function VerifyEmail({ email, onVerifySuccess, onBack }: VerifyEmailProps
     }
 
     if (code.length < 6) {
-      setOtpError("인증번호 6자리를 모두 입력해주세요.");
+      setOtpError("인증번호가 일치하지 않습니다.");
       return;
     }
 
@@ -90,107 +105,29 @@ export function VerifyEmail({ email, onVerifySuccess, onBack }: VerifyEmailProps
 
     setTimeout(() => {
       setIsSubmitting(false);
-      onVerifySuccess();
+      if (navigate) {
+        navigate("/signup", { state: { verified: true, email } });
+      }
     }, 400);
   };
 
   return (
-    <div
-      className="min-h-screen bg-[#f8f9fa] flex flex-col items-center justify-center p-4 sm:p-8 font-sans antialiased select-none"
-      style={{
-        boxSizing: "border-box",
-        backgroundColor: "#f8f9fa",
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        margin: 0,
-        padding: "32px 16px",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "480px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          boxSizing: "border-box",
-        }}
-      >
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            style={{
-              alignSelf: "flex-start",
-              background: "none",
-              border: "none",
-              color: "#6b7280",
-              fontSize: "14px",
-              cursor: "pointer",
-              marginBottom: "20px",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-            }}
-          >
-            ← 이메일 재입력
-          </button>
-        )}
-
-        <h1
-          style={{
-            fontSize: "30px",
-            fontWeight: 800,
-            color: "#000000",
-            textAlign: "center",
-            margin: "0 0 12px 0",
-            lineHeight: 1.2,
-            letterSpacing: "-0.02em",
-          }}
-        >
+    <div className="min-h-screen w-full bg-[#f8f9fa] flex flex-col items-center justify-center p-4 sm:p-8 font-sans antialiased">
+      <div>
+        <h1 className="text-[28px] sm:text-[30px] font-extrabold text-black text-center mb-3 leading-tight tracking-tight">
           인증번호를 입력해주세요
         </h1>
 
-        <p
-          style={{
-            fontSize: "15px",
-            color: "#555555",
-            textAlign: "center",
-            margin: "0 0 32px 0",
-            fontWeight: 500,
-            wordBreak: "break-all",
-          }}
-        >
-          <span style={{ color: "#FFC83D", fontWeight: 700 }}>
+        <p className="text-[14px] sm:text-[15px] text-[#555555] text-center mb-8 font-medium break-all leading-relaxed">
+          <span className="text-[#d99f00] font-bold mr-1">
             {email || "입력한 이메일"}
           </span>
           로 인증번호 6자리를 보냈어요.
         </p>
 
-        {}
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            width: "100%",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              justifyContent: "center",
-              marginBottom: "16px",
-              width: "100%",
-            }}
-          >
+        <form onSubmit={handleSubmit} className="w-full flex flex-col items-center">
+          <div className="flex gap-2 sm:gap-2.5 justify-center mb-4 w-full">
             {otp.map((digit, idx) => {
-              const isFocused = otpRefs.current[idx] === document.activeElement;
               const isFilled = digit !== "";
 
               return (
@@ -200,59 +137,33 @@ export function VerifyEmail({ email, onVerifySuccess, onBack }: VerifyEmailProps
                     otpRefs.current[idx] = el;
                   }}
                   type="text"
+                  inputMode="numeric"
                   maxLength={1}
                   value={digit}
                   onChange={(e) => handleOtpChange(idx, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(idx, e)}
                   onPaste={handlePaste}
-                  style={{
-                    width: "52px",
-                    height: "60px",
-                    borderRadius: "14px",
-                    border: isFilled || isFocused ? "2px solid #FFC83D" : "1.5px solid #d1d5db",
-                    backgroundColor: "#ffffff",
-                    fontSize: "26px",
-                    fontWeight: 700,
-                    textAlign: "center",
-                    color: "#000000",
-                    outline: "none",
-                    transition: "border-color 0.15s ease",
-                    boxSizing: "border-box",
-                  }}
+                  className={`w-11 h-14 sm:w-13 sm:h-16 rounded-2xl text-center text-2xl font-bold text-black outline-none transition-all ${
+                    isFilled
+                      ? "border-2 border-[#FFC83D] bg-white ring-2 ring-[#FFC83D]/20"
+                      : "border border-gray-300 bg-gray-50 hover:border-[#FFC83D] focus:border-[#FFC83D] focus:bg-white"
+                  }`}
                 />
               );
             })}
           </div>
 
           {otpError ? (
-            <p
-              style={{
-                color: "#e35252",
-                fontSize: "13px",
-                fontWeight: 500,
-                margin: "0 0 24px 0",
-                textAlign: "center",
-              }}
-            >
+            <p className="text-[#e35252] text-xs font-medium mb-6 text-center">
               {otpError}
             </p>
           ) : (
-            <div style={{ height: "13px", marginBottom: "24px" }} />
+            <div className="h-[18px] mb-6" />
           )}
 
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              backgroundColor: "#FFEAA7",
-              padding: "8px 20px",
-              borderRadius: "9999px",
-              marginBottom: "32px",
-            }}
-          >
+          <div className="inline-flex items-center gap-2 bg-[#FFEAA7] px-5 py-2 rounded-full mb-8">
             <svg
-              style={{ width: "16px", height: "16px", color: "#111827" }}
+              className="w-4 h-4 text-gray-900"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -264,14 +175,7 @@ export function VerifyEmail({ email, onVerifySuccess, onBack }: VerifyEmailProps
                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <span
-              style={{
-                fontSize: "14px",
-                fontWeight: 700,
-                color: "#111827",
-                letterSpacing: "0.02em",
-              }}
-            >
+            <span className="text-sm font-bold text-gray-900 tracking-wide">
               남은 시간 {formatTime(timeLeft)}
             </span>
           </div>
@@ -279,35 +183,16 @@ export function VerifyEmail({ email, onVerifySuccess, onBack }: VerifyEmailProps
           <button
             type="submit"
             disabled={isSubmitting}
-            style={{
-              width: "100%",
-              maxWidth: "360px",
-              height: "50px",
-              backgroundColor: "#2d2d2d",
-              color: "#ffffff",
-              fontSize: "16px",
-              fontWeight: 700,
-              borderRadius: "12px",
-              border: "none",
-              cursor: isSubmitting ? "not-allowed" : "pointer",
-              marginBottom: "20px",
-              transition: "background-color 0.2s ease",
-            }}
+            className="w-full h-[50px] bg-[#2d2d2d] hover:bg-black text-white text-base font-bold rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed mb-5 shadow-sm"
           >
             {isSubmitting ? "인증 확인 중..." : "인증 완료"}
           </button>
 
-          <p style={{ fontSize: "13px", color: "#6b7280", margin: 0 }}>
+          <p className="text-xs text-gray-500 m-0">
             이메일을 받지 못하셨나요?{" "}
             <span
               onClick={handleResendOtp}
-              style={{
-                fontWeight: 700,
-                color: "#111827",
-                borderBottom: "2px solid #FFC83D",
-                paddingBottom: "1px",
-                cursor: "pointer",
-              }}
+              className="font-bold text-gray-900 border-b-2 border-[#FFC83D] pb-0.5 cursor-pointer hover:text-[#FFC83D] transition-colors"
             >
               재발송
             </span>
