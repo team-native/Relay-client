@@ -28,6 +28,34 @@ interface SignupDraft {
   passwordConfirm: string;
 }
 
+function getServerErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const response = (error as { response?: { data?: unknown } }).response;
+    const data = response?.data;
+
+    if (typeof data === "string" && data.trim()) {
+      return data;
+    }
+
+    if (typeof data === "object" && data !== null) {
+      const message = (data as { message?: unknown; error?: unknown; detail?: unknown }).message;
+      if (typeof message === "string" && message.trim()) return message;
+
+      const errorMessage = (data as { error?: unknown }).error;
+      if (typeof errorMessage === "string" && errorMessage.trim()) return errorMessage;
+
+      const detail = (data as { detail?: unknown }).detail;
+      if (typeof detail === "string" && detail.trim()) return detail;
+    }
+  }
+
+  return fallback;
+}
+
 export function Signup({ onSignupSuccess }: SignupProps) {
   const navigate = useNavigate();
   const location = useLocation();
