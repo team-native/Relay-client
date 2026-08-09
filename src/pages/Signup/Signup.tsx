@@ -3,7 +3,11 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { sendVerificationEmail, signup as signupApi } from "../../api/authApi";
 import { getServerErrorMessage } from "../../api/errors";
 import CustomSelect from "../../components/ui/CustomSelect";
-import { COHORT_OPTIONS, DEPARTMENT_OPTIONS } from "../../constants/profileOptions";
+import {
+  COHORT_OPTIONS,
+  DEPARTMENT_API_VALUES,
+  DEPARTMENT_OPTIONS,
+} from "../../constants/profileOptions";
 
 export interface SignupProps {
   onSignupSuccess?: () => void;
@@ -162,7 +166,7 @@ export function Signup({ onSignupSuccess }: SignupProps) {
         name: name.trim(),
         email: email.trim(),
         password,
-        department: major,
+        department: DEPARTMENT_API_VALUES[major] ?? major,
         cohort: generation,
       });
 
