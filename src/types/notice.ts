@@ -1,6 +1,7 @@
 export interface Notice {
   id: string;
   title: string;
+  createdAt?: string;
   date: string;
   isNew?: boolean;
 }
