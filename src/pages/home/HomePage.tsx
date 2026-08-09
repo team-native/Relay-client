@@ -93,9 +93,10 @@ export default function HomePage() {
   }, [activeStatus, searchQuery]);
 
   const keyword = searchQuery.trim().toLowerCase();
-  const visibleStudies = studies.filter(
+  const visibleStudies = (Array.isArray(studies) ? studies : []).filter(
     (study) =>
-      study.status === activeStatus && study.title.toLowerCase().includes(keyword)
+      study.status === activeStatus &&
+      study.title.toLowerCase().includes(keyword)
   );
   const totalPages = Math.ceil(visibleStudies.length / STUDIES_PER_PAGE);
   const pagedStudies = visibleStudies.slice(

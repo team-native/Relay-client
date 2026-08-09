@@ -33,8 +33,9 @@ export default function NoticeListPage() {
   if (isLoading) return <p className="text-gray-500">불러오는 중...</p>;
   if (error) return <p className="text-red-500">{error}</p>;
 
-  const filteredNotices = notices.filter((notice) =>
-    notice.title.toLowerCase().includes(searchQuery.trim().toLowerCase())
+  const filteredNotices = (Array.isArray(notices) ? notices : []).filter(
+    (notice) =>
+      notice.title.toLowerCase().includes(searchQuery.trim().toLowerCase())
   );
 
   return (
