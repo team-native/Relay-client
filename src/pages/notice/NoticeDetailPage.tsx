@@ -19,7 +19,7 @@ export default function NoticeDetailPage() {
       try {
         const data = await getNoticeDetail(noticeId!);
         setNotice(data);
-      } catch (err) {
+      } catch {
         setError('공지사항을 불러오지 못했어요.');
       } finally {
         setIsLoading(false);
@@ -34,7 +34,7 @@ export default function NoticeDetailPage() {
   return (
     <div>
         <button
-        onClick={() => navigate('/notices')}
+        onClick={() => navigate('/notice')}
         className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800"
         >
         <ChevronLeft className="w-4 h-4" strokeWidth={1.8} />

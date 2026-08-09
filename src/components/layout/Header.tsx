@@ -1,9 +1,9 @@
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 
 const NAV_ITEMS = [
-  { label: '홈', path: '/' },
-  { label: '공지사항', path: '/notices' },
+  { label: '홈', path: '/home' },
+  { label: '공지사항', path: '/notice' },
   { label: '마이페이지', path: '/mypage' },
 ];
 
@@ -15,13 +15,13 @@ interface HeaderProps {
 export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
   const location = useLocation();
   const showSearch = !location.pathname.startsWith('/mypage');
-  const { isLoggedIn, login } = useAuth();
+  const { isLoggedIn } = useAuth();
 
   return (
     <header className="flex items-center justify-between px-8 h-16 border-b border-gray-200 bg-white">
       <div className="flex items-center gap-10">
         <Link to="/" className="flex items-center gap-2">
-          <img src="/logo.png" alt="Relay+" className="w-9 h-9" />
+          <img src="/relay.png" alt="Relay+" className="w-9 h-9" />
           <span className="font-bold text-lg">Relay+</span>
         </Link>
 
@@ -78,13 +78,12 @@ export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
             양
           </Link>
         ) : (
-          <button
-            type="button"
-            onClick={login}
+          <Link
+            to="/login"
             className="bg-[#FFDD86] text-black text-sm font-semibold rounded-full px-5 py-2 hover:brightness-95 transition"
           >
             로그인
-          </button>
+          </Link>
         )}
       </div>
     </header>

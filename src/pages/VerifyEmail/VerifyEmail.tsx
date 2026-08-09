@@ -41,10 +41,9 @@ export function VerifyEmail() {
   }, [timeLeft]);
 
   useEffect(() => {
-    otpRefs.current[0]?.focus();
-
-    sendEmail();
-  }, []);
+  otpRefs.current[0]?.focus();
+  sendEmail();
+}, []);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

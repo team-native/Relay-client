@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Pencil, Lock, LogOut, Calendar } from 'lucide-react';
 import { getMyProfile, getEnrolledCourses } from '../../api/userApi';
 import { STATUS_BADGE_STYLES } from '../../constants/studyStatus';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import type { UserProfile, EnrolledCourse } from '../../types/user';
 
 const SETTINGS_ITEMS = [
@@ -18,9 +18,14 @@ export default function MyPage() {
   const [error, setError] = useState<string | null>(null);
 
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { isLoggedIn, logout } = useAuth();
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      setIsLoading(false);
+      return;
+    }
+
     async function fetchAll() {
       try {
         const [profileData, coursesData] = await Promise.all([
@@ -29,18 +34,33 @@ export default function MyPage() {
         ]);
         setProfile(profileData);
         setCourses(coursesData);
-      } catch (err) {
+      } catch {
         setError('내 정보를 불러오지 못했어요.');
       } finally {
         setIsLoading(false);
       }
     }
     fetchAll();
-  }, []);
+  }, [isLoggedIn]);
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate('/');
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-xl px-8 py-10 text-center">
+        <h1 className="text-xl font-bold">로그인 후 서비스를 이용해주세요.</h1>
+        <p className="text-sm text-gray-400 mt-2">마이페이지는 로그인한 사용자만 볼 수 있어요.</p>
+        <Link
+          to="/login"
+          className="inline-flex mt-6 bg-[#FFDD86] text-black text-sm font-semibold rounded-full px-5 py-2.5 hover:brightness-95 transition"
+        >
+          로그인하기
+        </Link>
+      </div>
+    );
   }
 
   if (isLoading) return <p className="text-gray-500">불러오는 중...</p>;

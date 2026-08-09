@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { sendVerificationEmail, signup as signupApi } from "../../api/authApi";
 
 export interface SignupProps {
   onSignupSuccess?: () => void;
@@ -11,7 +12,7 @@ interface SignupLocationState {
   email?: string;
 }
 
-export function Signup({ onSignupSuccess, onSwitchToLogin }: SignupProps) {
+export function Signup({ onSignupSuccess }: SignupProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -19,6 +20,8 @@ export function Signup({ onSignupSuccess, onSwitchToLogin }: SignupProps) {
   const [email, setEmail] = useState("");
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [emailError, setEmailError] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [generation, setGeneration] = useState("");
   const [isGenerationOpen, setIsGenerationOpen] = useState(false);
@@ -90,7 +93,7 @@ export function Signup({ onSignupSuccess, onSwitchToLogin }: SignupProps) {
     setEmailError("");
   };
 
-  const handleVerifyEmail = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleVerifyEmail = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
 
     if (!isEmailValidFormat) {
@@ -99,9 +102,12 @@ export function Signup({ onSignupSuccess, onSwitchToLogin }: SignupProps) {
     }
 
     setEmailError("");
-
-    // 이메일 인증 페이지로 이동, 입력한 이메일을 state로 전달
-    navigate("/verify-email", { state: { email } });
+    try {
+      await sendVerificationEmail(email.trim());
+      navigate("/verify", { state: { email: email.trim() } });
+    } catch (error) {
+      setEmailError("인증 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    }
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,14 +138,29 @@ export function Signup({ onSignupSuccess, onSwitchToLogin }: SignupProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isSubmitActive) return;
+    if (!isSubmitActive || isSubmitting) return;
 
-    alert("가입되었습니다.");
+    setIsSubmitting(true);
+    setSubmitError("");
 
-    navigate("/login");
-    onSignupSuccess?.();
+    try {
+      await signupApi({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        department: major,
+        cohort: generation,
+      });
+
+      onSignupSuccess?.();
+      navigate("/login");
+    } catch {
+      setSubmitError("회원가입에 실패했습니다. 입력한 정보를 확인해주세요.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -369,18 +390,22 @@ export function Signup({ onSignupSuccess, onSwitchToLogin }: SignupProps) {
             )}
           </div>
 
+          {submitError && (
+            <p className="text-[#e35252] text-sm font-medium">{submitError}</p>
+          )}
+
           {/* 가입하기 버튼 */}
           <div className="pt-2">
             <button
               type="submit"
-              disabled={!isSubmitActive}
+              disabled={!isSubmitActive || isSubmitting}
               className={`w-full h-12 font-bold text-base rounded-xl transition-all cursor-pointer flex items-center justify-center border-none ${
-                isSubmitActive
+                isSubmitActive && !isSubmitting
                   ? "bg-[#FFC83D] hover:bg-[#f0ba33] text-black shadow-sm"
                   : "bg-gray-300 text-gray-500 cursor-not-allowed"
               }`}
             >
-              회원가입
+              {isSubmitting ? "가입 중..." : "회원가입"}
             </button>
           </div>
         </form>

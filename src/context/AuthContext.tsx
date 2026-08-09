@@ -1,22 +1,23 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
-
-interface AuthContextValue {
-  isLoggedIn: boolean;
-  login: () => void;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+import { useState, type ReactNode } from 'react';
+import { logout as logoutApi } from '../api/authApi';
+import { ACCESS_TOKEN_KEY } from '../api/client';
+import { AuthContext } from './authContextValue';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    () => Boolean(localStorage.getItem(ACCESS_TOKEN_KEY))
+  );
 
   function login() {
     setIsLoggedIn(true);
   }
 
-  function logout() {
-    setIsLoggedIn(false);
+  async function logout() {
+    try {
+      await logoutApi();
+    } finally {
+      setIsLoggedIn(false);
+    }
   }
 
   return (
@@ -24,12 +25,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth는 AuthProvider 내부에서만 사용할 수 있어요.');
-  }
-  return context;
 }

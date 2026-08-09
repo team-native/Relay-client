@@ -17,7 +17,7 @@ export default function NoticeListPage() {
       try {
         const data = await getNotices();
         setNotices(data);
-      } catch (err) {
+      } catch {
         setError('공지사항을 불러오지 못했어요.');
       } finally {
         setIsLoading(false);
@@ -51,7 +51,7 @@ export default function NoticeListPage() {
           filteredNotices.map((notice) => (
             <button
               key={notice.id}
-              onClick={() => navigate(`/notices/${notice.id}`)}
+              onClick={() => navigate(`/notice/${notice.id}`)}
               className="w-full text-left px-6 py-5 hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-2">
