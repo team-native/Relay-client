@@ -4,6 +4,7 @@ import { sendVerificationEmail, verifyEmail } from "../../api/authApi";
 
 interface VerifyEmailLocationState {
   email?: string;
+  draft?: unknown;
 }
 
 export function VerifyEmail() {
@@ -21,7 +22,8 @@ export function VerifyEmail() {
     location = null;
   }
 
-  const email = ((location?.state as VerifyEmailLocationState) || {}).email || "";
+  const locationState = (location?.state as VerifyEmailLocationState) || {};
+  const email = locationState.email || "";
 
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [otpError, setOtpError] = useState<string>("");
@@ -125,7 +127,9 @@ export function VerifyEmail() {
     try {
       await verifyEmail({ email, code });
       if (navigate) {
-        navigate("/signup", { state: { verified: true, email }});
+        navigate("/signup", {
+          state: { verified: true, email, draft: locationState.draft },
+        });
       }
     } catch {
       setOtpError("인증번호가 일치하지 않거나 인증에 실패했습니다.");

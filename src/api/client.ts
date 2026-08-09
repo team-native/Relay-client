@@ -2,6 +2,7 @@ import axios, { type InternalAxiosRequestConfig } from 'axios';
 
 export const ACCESS_TOKEN_KEY = 'relay_access_token';
 export const REFRESH_TOKEN_KEY = 'relay_refresh_token';
+export const AUTH_TOKEN_REMOVED_EVENT = 'relay_auth_token_removed';
 
 const PUBLIC_AUTH_PATHS = [
   '/api/auth/login',
@@ -11,8 +12,29 @@ const PUBLIC_AUTH_PATHS = [
   '/api/auth/reissue',
 ];
 
+const PUBLIC_GET_PATHS = [
+  '/api/studies',
+  '/api/notice',
+];
+
 function isPublicAuthUrl(url: string): boolean {
   return PUBLIC_AUTH_PATHS.some((path) => url.includes(path));
+}
+
+function isPublicGetUrl(config: InternalAxiosRequestConfig): boolean {
+  const requestUrl = config.url ?? '';
+  const method = (config.method ?? 'get').toLowerCase();
+
+  return (
+    method === 'get' &&
+    PUBLIC_GET_PATHS.some((path) => requestUrl === path || requestUrl.startsWith(`${path}/`))
+  );
+}
+
+function removeStoredTokens() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  window.dispatchEvent(new Event(AUTH_TOKEN_REMOVED_EVENT));
 }
 
 export const apiClient = axios.create({
@@ -23,7 +45,7 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const requestUrl = config.url ?? '';
 
-  if (isPublicAuthUrl(requestUrl)) {
+  if (isPublicAuthUrl(requestUrl) || isPublicGetUrl(config)) {
     delete config.headers.Authorization;
     config.withCredentials = false;
     return config;
@@ -50,16 +72,16 @@ apiClient.interceptors.response.use(
     const requestUrl = originalRequest?.url ?? '';
     const isAuthRequest = isPublicAuthUrl(requestUrl);
 
-    if (
-      error.response?.status !== 401 ||
-      !originalRequest ||
-      originalRequest._retry ||
-      isAuthRequest
-    ) {
+    if (error.response?.status !== 401 || !originalRequest || originalRequest._retry) {
       return Promise.reject(error);
     }
 
     originalRequest._retry = true;
+
+    if (isAuthRequest || isPublicGetUrl(originalRequest)) {
+      removeStoredTokens();
+      return Promise.reject(error);
+    }
 
     if (!refreshPromise) {
       refreshPromise = apiClient
@@ -87,8 +109,7 @@ apiClient.interceptors.response.use(
           return accessToken;
         })
         .catch(() => {
-          localStorage.removeItem(ACCESS_TOKEN_KEY);
-          localStorage.removeItem(REFRESH_TOKEN_KEY);
+          removeStoredTokens();
           return null;
         })
         .finally(() => {
