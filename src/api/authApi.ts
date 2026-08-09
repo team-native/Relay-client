@@ -43,6 +43,10 @@ function normalizeTokens(data: unknown): AuthTokens {
     data?: {
       accessToken?: string;
       refreshToken?: string;
+      token?: {
+        accessToken?: string;
+        refreshToken?: string;
+      };
     };
   };
 
@@ -50,12 +54,14 @@ function normalizeTokens(data: unknown): AuthTokens {
     accessToken:
       body.accessToken ??
       body.token?.accessToken ??
-      body.data?.accessToken,
+      body.data?.accessToken ??
+      body.data?.token?.accessToken,
 
     refreshToken:
       body.refreshToken ??
       body.token?.refreshToken ??
-      body.data?.refreshToken,
+      body.data?.refreshToken ??
+      body.data?.token?.refreshToken,
   };
 }
 
