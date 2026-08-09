@@ -3,11 +3,6 @@ import { Link, useNavigate, useInRouterContext } from "react-router-dom";
 import { login as loginApi } from "../../api/authApi";
 import { useAuth } from "../../context/useAuth";
 
-export interface LoginProps {
-  /** 실제 API 연동 시 사용할 로그인 콜백 (옵션) */
-  onLoginSubmit?: (data: { email: string; password: string }) => Promise<void> | void;
-}
-
 function SafeLink({
   to,
   className,
@@ -39,7 +34,7 @@ function SafeLink({
   );
 }
 
-export function Login({ onLoginSubmit }: LoginProps) {
+export function Login() {
   const { login } = useAuth();
   let navigate: ((path: string) => void) | null = null;
   try {
