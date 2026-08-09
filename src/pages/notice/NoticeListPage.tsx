@@ -17,7 +17,7 @@ export default function NoticeListPage() {
       try {
         const data = await getNotices();
         setNotices(data);
-      } catch (err) {
+      } catch {
         setError('공지사항을 불러오지 못했어요.');
       } finally {
         setIsLoading(false);

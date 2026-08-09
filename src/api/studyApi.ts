@@ -4,9 +4,13 @@ import { createMockStudy, mockProfile, mockStudies, mockStudyDetails } from '../
 import { mockDelay } from '../mocks/delay';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
+const CONFIRMED_PARTICIPANT_COUNT = 10;
+
+const mockStudyStore = mockStudies;
+const mockStudyDetailStore = mockStudyDetails;
 
 export async function getStudies(): Promise<Study[]> {
-  if (USE_MOCK) return mockStudies;
+  if (USE_MOCK) return mockDelay(mockStudyStore.map((study) => ({ ...study })));
 
   const res = await apiClient.get<Study[]>('/studies');
   return res.data;
@@ -14,9 +18,14 @@ export async function getStudies(): Promise<Study[]> {
 
 export async function getStudyDetail(studyId: string): Promise<StudyDetail> {
   if (USE_MOCK) {
-    const detail = mockStudyDetails[studyId];
+    const detail = mockStudyDetailStore[studyId];
     if (!detail) throw new Error('해당 릴레이 스터디를 찾을 수 없어요.');
-    return detail;
+    return mockDelay({
+      ...detail,
+      author: { ...detail.author },
+      participants: detail.participants.map((participant) => ({ ...participant })),
+      comments: detail.comments.map((comment) => ({ ...comment })),
+    });
   }
 
   const res = await apiClient.get<StudyDetail>(`/studies/${studyId}`);
@@ -24,14 +33,41 @@ export async function getStudyDetail(studyId: string): Promise<StudyDetail> {
 }
 
 export async function createStudy(payload: CreateStudyPayload): Promise<Study> {
-  if (USE_MOCK) return mockDelay(createMockStudy(payload, String(Date.now())));
+  if (USE_MOCK) {
+    const created = createMockStudy(payload, String(Date.now()));
+    mockStudyStore.unshift(created);
+    return mockDelay({ ...created });
+  }
 
   const res = await apiClient.post<Study>('/studies', payload);
   return res.data;
 }
 
 export async function applyStudy(studyId: string): Promise<void> {
-  if (USE_MOCK) return mockDelay(undefined);
+  if (USE_MOCK) {
+    const study = mockStudyStore.find((item) => item.id === studyId);
+    const detail = mockStudyDetailStore[studyId];
+
+    if (study && detail && !detail.isApplied) {
+      const participant = {
+        id: `me-${Date.now()}`,
+        name: mockProfile.name,
+        department: mockProfile.department,
+        cohort: mockProfile.cohort,
+      };
+
+      study.participantCount += 1;
+      detail.participantCount += 1;
+      if (study.participantCount >= CONFIRMED_PARTICIPANT_COUNT) {
+        study.status = '개설확정';
+        detail.status = '개설확정';
+      }
+      detail.isApplied = true;
+      detail.participants = [participant, ...detail.participants];
+    }
+
+    return mockDelay(undefined);
+  }
 
   await apiClient.post(`/studies/${studyId}/applications`);
 }

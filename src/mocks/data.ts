@@ -252,6 +252,8 @@ function buildParticipants(count: number): StudyParticipant[] {
   return Array.from({ length: count }, (_, index) => ({
     id: String(index + 1),
     name: PARTICIPANT_NAMES[index % PARTICIPANT_NAMES.length],
+    department: index % 3 === 0 ? '소프트웨어개발과' : index % 3 === 1 ? '스마트IoT과' : '인공지능과',
+    cohort: index % 2 === 0 ? '10기' : '9기',
   }));
 }
 
@@ -278,7 +280,6 @@ function buildStudyDetail(study: Study): StudyDetail {
     },
     participants: buildParticipants(study.participantCount),
     comments: buildComments(study.commentCount),
-    applicationDeadlineDays: study.status === '종료' ? 0 : 3,
     isApplied: false,
   };
 }

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useInRouterContext } from "react-router-dom";
+import { useAuth } from "../../context/useAuth";
 
 export interface LoginProps {
   /** 실제 API 연동 시 사용할 로그인 콜백 (옵션) */
@@ -38,6 +39,7 @@ function SafeLink({
 }
 
 export function Login({ onLoginSubmit }: LoginProps) {
+  const { login } = useAuth();
   let navigate: ((path: string) => void) | null = null;
   try {
     navigate = useNavigate();
@@ -64,6 +66,10 @@ export function Login({ onLoginSubmit }: LoginProps) {
     try {
       if (onLoginSubmit) {
         await onLoginSubmit({ email, password });
+        login();
+        if (navigate) {
+          navigate("/");
+        }
       } else {
         // 백엔드 미연동 시 기본 시뮬레이션 로직
         await new Promise((resolve) => setTimeout(resolve, 600));
@@ -76,6 +82,7 @@ export function Login({ onLoginSubmit }: LoginProps) {
         }
 
         // 로그인 성공 시 메인 페이지 이동
+        login();
         if (navigate) {
           navigate("/");
         }

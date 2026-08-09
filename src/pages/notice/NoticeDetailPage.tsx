@@ -19,7 +19,7 @@ export default function NoticeDetailPage() {
       try {
         const data = await getNoticeDetail(noticeId!);
         setNotice(data);
-      } catch (err) {
+      } catch {
         setError('공지사항을 불러오지 못했어요.');
       } finally {
         setIsLoading(false);

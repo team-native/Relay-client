@@ -22,6 +22,8 @@ export interface StudyAuthor {
 export interface StudyParticipant {
   id: string;
   name: string;
+  department?: string;
+  cohort?: string;
 }
 
 export interface StudyComment {
@@ -38,7 +40,6 @@ export interface StudyDetail extends Study {
   author: StudyAuthor;
   participants: StudyParticipant[];
   comments: StudyComment[];
-  applicationDeadlineDays: number;
   isApplied: boolean;
 }
 

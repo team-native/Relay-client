@@ -37,7 +37,7 @@ export default function ProfileEditPage() {
           department: data.department,
           cohort: data.cohort,
         });
-      } catch (err) {
+      } catch {
         setError('프로필을 불러오지 못했어요.');
       } finally {
         setIsLoading(false);
@@ -89,7 +89,7 @@ export default function ProfileEditPage() {
         cohort: form.cohort,
       });
       navigate('/mypage');
-    } catch (err) {
+    } catch {
       setError('저장에 실패했어요. 다시 시도해주세요.');
     } finally {
       setIsSaving(false);

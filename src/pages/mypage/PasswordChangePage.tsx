@@ -44,7 +44,7 @@ export default function PasswordChangePage() {
         newPassword: form.newPassword,
       });
       navigate('/mypage');
-    } catch (err) {
+    } catch {
       setServerError('현재 비밀번호가 일치하지 않거나, 요청 처리 중 문제가 발생했어요.');
     } finally {
       setIsSaving(false);

@@ -29,10 +29,7 @@ function getDaysInMonth(year: number, month: number): number {
 
 const TODAY = new Date();
 
-const YEAR_OPTIONS = toOptions(
-  range(TODAY.getFullYear() - 2, TODAY.getFullYear() + 2),
-  '년'
-);
+const YEAR_OPTIONS = toOptions(range(2026, 2030), '년');
 const MONTH_OPTIONS = toOptions(range(1, 12), '월');
 const HOUR_OPTIONS = toOptions(range(0, 23), '시');
 const MINUTE_OPTIONS = toOptions(

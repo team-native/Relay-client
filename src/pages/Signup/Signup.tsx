@@ -11,7 +11,7 @@ interface SignupLocationState {
   email?: string;
 }
 
-export function Signup({ onSignupSuccess, onSwitchToLogin }: SignupProps) {
+export function Signup({ onSignupSuccess }: SignupProps) {
   const navigate = useNavigate();
   const location = useLocation();
 

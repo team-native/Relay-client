@@ -3,12 +3,14 @@ import { Link, useOutletContext, useParams } from 'react-router-dom';
 import { Calendar, ChevronLeft, User, Users } from 'lucide-react';
 import { applyStudy, createStudyComment, getStudyDetail } from '../../api/studyApi';
 import { getServerErrorMessage, LOGIN_REQUIRED_MESSAGE } from '../../api/errors';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { STATUS_BADGE_STYLES } from '../../constants/studyStatus';
 import type { StudyComment, StudyDetail } from '../../types/study';
 import type { LayoutContext } from '../../components/layout/Layout';
 
 const VISIBLE_PARTICIPANTS = 4;
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+const CONFIRMED_PARTICIPANT_COUNT = 10;
 
 function Avatar({ name, className = '' }: { name: string; className?: string }) {
   return (
@@ -18,6 +20,35 @@ function Avatar({ name, className = '' }: { name: string; className?: string }) 
       {name.charAt(0)}
     </span>
   );
+}
+
+function parseScheduledAt(scheduledAt: string) {
+  const match = scheduledAt.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+
+  const [, month, day, hour, minute] = match.map(Number);
+  const now = new Date();
+  return new Date(now.getFullYear(), month - 1, day, hour, minute);
+}
+
+function getApplicationDeadlineText(scheduledAt: string) {
+  const deadline = parseScheduledAt(scheduledAt);
+  if (!deadline) return '신청 마감일을 확인해주세요.';
+
+  const now = new Date();
+  const remainingDays = Math.ceil((deadline.getTime() - now.getTime()) / MS_PER_DAY);
+  const formatted = `${deadline.getMonth() + 1}월 ${deadline.getDate()}일 ${String(
+    deadline.getHours()
+  ).padStart(2, '0')}:${String(deadline.getMinutes()).padStart(2, '0')}`;
+
+  if (remainingDays <= 0) return `신청 마감: ${formatted}`;
+  if (remainingDays === 1) return `신청 마감: ${formatted} (내일 마감)`;
+  return `신청 마감: ${formatted} (${remainingDays}일 남음)`;
+}
+
+function isApplicationDeadlinePassed(scheduledAt: string) {
+  const deadline = parseScheduledAt(scheduledAt);
+  return deadline ? deadline.getTime() <= Date.now() : false;
 }
 
 function CommentItem({ comment }: { comment: StudyComment }) {
@@ -80,7 +111,30 @@ export default function StudyDetailPage() {
     try {
       await applyStudy(studyId);
       setStudy((prev) =>
-        prev ? { ...prev, isApplied: true, participantCount: prev.participantCount + 1 } : prev
+        {
+          if (!prev) return prev;
+
+          const nextParticipantCount = prev.participantCount + 1;
+
+          return {
+            ...prev,
+            status:
+              nextParticipantCount >= CONFIRMED_PARTICIPANT_COUNT && prev.status === '개설미정'
+                ? '개설확정'
+                : prev.status,
+            isApplied: true,
+            participantCount: nextParticipantCount,
+            participants: [
+              {
+                id: `me-${Date.now()}`,
+                name: '양지우',
+                department: '스마트IoT과',
+                cohort: '10기',
+              },
+              ...prev.participants,
+            ],
+          };
+        }
       );
     } catch (err) {
       setActionError(getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.'));
@@ -124,8 +178,10 @@ export default function StudyDetailPage() {
   }
 
   const isClosed = study.status === '종료';
+  const isDeadlinePassed = isApplicationDeadlinePassed(study.scheduledAt);
   const isFull = study.participantCount >= study.capacity;
   const hiddenParticipantCount = study.participantCount - VISIBLE_PARTICIPANTS;
+  const deadlineText = getApplicationDeadlineText(study.scheduledAt);
 
   return (
     <div>
@@ -167,18 +223,30 @@ export default function StudyDetailPage() {
           {study.participants.length === 0 ? (
             <p className="text-sm text-gray-400 mt-3">아직 참가자가 없어요.</p>
           ) : (
-            <div className="flex items-center mt-3">
+            <div className="mt-3 grid grid-cols-2 gap-3">
               {study.participants.slice(0, VISIBLE_PARTICIPANTS).map((participant) => (
-                <Avatar
+                <div
                   key={participant.id}
-                  name={participant.name}
-                  className="w-8 h-8 text-xs border-2 border-white -mr-2 last:mr-0"
-                />
+                  className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2"
+                >
+                  <Avatar name={participant.name} className="w-8 h-8 text-xs" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{participant.name}</p>
+                    {(participant.department || participant.cohort) && (
+                      <p className="text-xs text-gray-400 truncate">
+                        {[participant.department, participant.cohort].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
               ))}
               {hiddenParticipantCount > 0 && (
-                <span className="shrink-0 w-8 h-8 rounded-full bg-[#FFDD86] text-black text-xs font-semibold flex items-center justify-center border-2 border-white">
-                  +{hiddenParticipantCount}
-                </span>
+                <div className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm text-gray-400">
+                  <span className="shrink-0 w-8 h-8 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold flex items-center justify-center">
+                    +{hiddenParticipantCount}
+                  </span>
+                  더 많은 참가자가 있어요
+                </div>
               )}
             </div>
           )}
@@ -186,17 +254,7 @@ export default function StudyDetailPage() {
           <hr className="my-6 border-gray-200" />
 
           <h2 className="text-sm font-semibold">댓글 {study.commentCount}</h2>
-          {study.comments.length === 0 ? (
-            <p className="text-sm text-gray-400 mt-4">첫 댓글을 남겨보세요.</p>
-          ) : (
-            <ul className="mt-4 space-y-5">
-              {study.comments.map((comment) => (
-                <CommentItem key={comment.id} comment={comment} />
-              ))}
-            </ul>
-          )}
-
-          <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 mt-6">
+          <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 mt-4">
             <input
               value={commentDraft}
               onChange={(e) => setCommentDraft(e.target.value)}
@@ -211,6 +269,16 @@ export default function StudyDetailPage() {
               {isPostingComment ? '등록 중...' : '등록'}
             </button>
           </form>
+
+          {study.comments.length === 0 ? (
+            <p className="text-sm text-gray-400 mt-4">첫 댓글을 남겨보세요.</p>
+          ) : (
+            <ul className="mt-4 space-y-5">
+              {study.comments.map((comment) => (
+                <CommentItem key={comment.id} comment={comment} />
+              ))}
+            </ul>
+          )}
 
           {actionError && <p className="text-red-500 text-sm mt-3">{actionError}</p>}
         </div>
@@ -245,11 +313,13 @@ export default function StudyDetailPage() {
           <button
             type="button"
             onClick={handleApply}
-            disabled={isClosed || isFull || study.isApplied || isApplying}
+            disabled={isClosed || isDeadlinePassed || isFull || study.isApplied || isApplying}
             className="w-full mt-5 h-12 rounded-lg bg-[#FFDD86] text-black font-semibold hover:brightness-95 transition disabled:bg-gray-100 disabled:text-gray-400 disabled:hover:brightness-100"
           >
             {isClosed
               ? '종료된 스터디예요'
+              : isDeadlinePassed
+                ? '신청이 마감됐어요'
               : study.isApplied
                 ? '신청 완료'
                 : isFull
@@ -263,7 +333,7 @@ export default function StudyDetailPage() {
             <p className="text-xs text-gray-400 text-center mt-3">
               {study.isApplied
                 ? '연사 시작 전에 알려드릴게요.'
-                : `신청 마감까지 ${study.applicationDeadlineDays}일 남았어요`}
+                : deadlineText}
             </p>
           )}
         </aside>
