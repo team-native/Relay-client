@@ -15,7 +15,7 @@ interface HeaderProps {
 export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
   const location = useLocation();
   const showSearch = !location.pathname.startsWith('/mypage');
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, userName } = useAuth();
 
   return (
     <header className="flex items-center justify-between px-8 h-16 border-b border-gray-200 bg-white">
@@ -75,7 +75,7 @@ export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
             aria-label="마이페이지"
             className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-semibold"
           >
-            양
+            {userName ? userName.charAt(0) : ''}
           </Link>
         ) : (
           <Link
