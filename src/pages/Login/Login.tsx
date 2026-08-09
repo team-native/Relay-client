@@ -111,6 +111,7 @@ export function Login({ onLoginSubmit }: LoginProps) {
                 if (errorMessage) setErrorMessage("");
               }}
               placeholder="이메일 주소를 입력해 주세요."
+              autoComplete="username"
               className={`w-full h-[50px] px-4 rounded-[12px] text-[14px] outline-none transition-colors duration-150 placeholder:text-[#a0a0a0] ${
                 errorMessage
                   ? "border-[1.5px] border-[#e35252] bg-[#fdf0f0] text-black"
@@ -133,6 +134,7 @@ export function Login({ onLoginSubmit }: LoginProps) {
                   if (errorMessage) setErrorMessage("");
                 }}
                 placeholder="비밀번호를 입력해 주세요."
+                autoComplete="current-password"
                 className={`w-full h-[50px] pl-4 pr-12 rounded-[12px] text-[14px] outline-none transition-colors duration-150 placeholder:text-[#a0a0a0] ${
                   errorMessage
                     ? "border-[1.5px] border-[#e35252] bg-[#fdf0f0] text-black"
