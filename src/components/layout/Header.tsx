@@ -2,8 +2,8 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
 
 const NAV_ITEMS = [
-  { label: '홈', path: '/' },
-  { label: '공지사항', path: '/notices' },
+  { label: '홈', path: '/home' },
+  { label: '공지사항', path: '/notice' },
   { label: '마이페이지', path: '/mypage' },
 ];
 

@@ -15,16 +15,18 @@ import VerifyEmail from '../pages/VerifyEmail/VerifyEmail';
 export const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
   { path: '/signup', element: <Signup /> },
+  { path: '/verify', element: <VerifyEmail /> },
   { path: '/verify-email', element: <VerifyEmail /> },
   {
     path: '/',
     element: <Layout />,
     children: [
       { index: true, element: <HomePage /> },
-      { path: 'studies/new', element: <StudyCreatePage /> },
-      { path: 'studies/:studyId', element: <StudyDetailPage /> },
-      { path: 'notices', element: <NoticeListPage /> },
-      { path: 'notices/:noticeId', element: <NoticeDetailPage /> },
+      { path: 'home', element: <HomePage /> },
+      { path: 'new', element: <StudyCreatePage /> },
+      { path: 'lecture/:studyId', element: <StudyDetailPage /> },
+      { path: 'notice', element: <NoticeListPage /> },
+      { path: 'notice/:noticeId', element: <NoticeDetailPage /> },
       { path: 'mypage', element: <MyPage /> },
       { path: 'mypage/profile', element: <ProfileEditPage /> },
       { path: 'mypage/password', element: <PasswordChangePage /> },

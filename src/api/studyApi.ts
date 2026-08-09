@@ -12,7 +12,7 @@ const mockStudyDetailStore = mockStudyDetails;
 export async function getStudies(): Promise<Study[]> {
   if (USE_MOCK) return mockDelay(mockStudyStore.map((study) => ({ ...study })));
 
-  const res = await apiClient.get<Study[]>('/studies');
+  const res = await apiClient.get<Study[]>('/home');
   return res.data;
 }
 
@@ -28,7 +28,7 @@ export async function getStudyDetail(studyId: string): Promise<StudyDetail> {
     });
   }
 
-  const res = await apiClient.get<StudyDetail>(`/studies/${studyId}`);
+  const res = await apiClient.get<StudyDetail>(`/lecture/${studyId}`);
   return res.data;
 }
 
@@ -39,7 +39,7 @@ export async function createStudy(payload: CreateStudyPayload): Promise<Study> {
     return mockDelay({ ...created });
   }
 
-  const res = await apiClient.post<Study>('/studies', payload);
+  const res = await apiClient.post<Study>('/new', payload);
   return res.data;
 }
 
@@ -69,7 +69,25 @@ export async function applyStudy(studyId: string): Promise<void> {
     return mockDelay(undefined);
   }
 
-  await apiClient.post(`/studies/${studyId}/applications`);
+  await apiClient.post('/enrollments', { lectureId: studyId });
+}
+
+export async function cancelStudyApplication(studyId: string): Promise<void> {
+  if (USE_MOCK) {
+    const study = mockStudyStore.find((item) => item.id === studyId);
+    const detail = mockStudyDetailStore[studyId];
+
+    if (study && detail && detail.isApplied) {
+      study.participantCount = Math.max(0, study.participantCount - 1);
+      detail.participantCount = Math.max(0, detail.participantCount - 1);
+      detail.isApplied = false;
+      detail.participants = detail.participants.filter((participant) => !participant.id.startsWith('me-'));
+    }
+
+    return mockDelay(undefined);
+  }
+
+  await apiClient.delete(`/enrollments/${studyId}`);
 }
 
 export async function createStudyComment(

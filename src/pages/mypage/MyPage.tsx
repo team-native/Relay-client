@@ -43,8 +43,8 @@ export default function MyPage() {
     fetchAll();
   }, [isLoggedIn]);
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate('/');
   }
 
