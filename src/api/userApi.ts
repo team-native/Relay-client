@@ -17,7 +17,7 @@ export type UpdateProfilePayload = Pick<UserProfile, 'name' | 'department' | 'co
 export async function updateMyProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
   if (USE_MOCK) return mockDelay({ ...mockProfile, ...payload });
 
-  const res = await apiClient.put<UserProfile>('/api/users/myPage/profile', payload);
+  const res = await apiClient.patch<UserProfile>('/api/users/myPage/profile', payload);
   return res.data;
 }
 
