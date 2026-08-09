@@ -20,7 +20,6 @@ apiClient.interceptors.request.use(
       requestUrl.includes('/api/auth/email/verify') ||
       requestUrl.includes('/api/auth/reissue');
 
-    // 인증 API가 아닌 경우에만 Access Token을 Authorization 헤더에 추가
     if (!isAuthRequest) {
       const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
 
