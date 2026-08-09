@@ -25,7 +25,7 @@ export async function getStudies(): Promise<Study[]> {
     return mockDelay(mockStudyStore.map((study) => ({ ...study })));
   }
 
-  const res = await apiClient.get<Study[]>('/api/lectures/home');
+  const res = await apiClient.get<Study[]>('/api/lectures/new');
   return res.data;
 }
 
@@ -52,7 +52,7 @@ export async function getStudyDetail(
     });
   }
 
-  const res = await apiClient.get<StudyDetail>(`/api/lectures/home/${studyId}`);
+  const res = await apiClient.get<StudyDetail>(`/api/lectures/new/${studyId}`);
   return res.data;
 }
 
@@ -67,7 +67,7 @@ export async function createStudy(
     return mockDelay({ ...created });
   }
 
-  const res = await apiClient.post<Study>('/api/lectures/home', payload);
+  const res = await apiClient.post<Study>('/api/lectures/new', payload);
   return res.data;
 }
 
@@ -151,7 +151,7 @@ export async function createStudyComment(
   }
 
   const res = await apiClient.post<StudyComment>(
-    `/api/lectures/home/${studyId}/comments`,
+    `/api/lectures/new/${studyId}/comments`,
     { content }
   );
 
