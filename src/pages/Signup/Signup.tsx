@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { sendVerificationEmail, signup as signupApi } from "../../api/authApi";
 import CustomSelect from "../../components/ui/CustomSelect";
 import {
-  COHORT_OPTIONS,
   DEPARTMENT_API_VALUES,
   DEPARTMENT_OPTIONS,
 } from "../../constants/profileOptions";
@@ -27,6 +26,8 @@ interface SignupDraft {
   password: string;
   passwordConfirm: string;
 }
+
+const GENERATION_OPTIONS = ["8", "9", "10"];
 
 function getServerErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -195,7 +196,7 @@ export function Signup({ onSignupSuccess }: SignupProps) {
         password,
         passwordConfirm,
         department: DEPARTMENT_API_VALUES[major] ?? major,
-        cohort: generation,
+        generation,
       });
 
       onSignupSuccess?.();
@@ -268,7 +269,7 @@ export function Signup({ onSignupSuccess }: SignupProps) {
             <div className="flex-1">
               <label className="text-sm font-bold text-black mb-2 block">기수</label>
               <CustomSelect
-                options={COHORT_OPTIONS}
+                options={GENERATION_OPTIONS}
                 value={generation}
                 onChange={setGeneration}
                 placeholder="기수 선택"
