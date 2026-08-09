@@ -120,7 +120,16 @@ export async function verifyEmail(
 export async function reissueToken(): Promise<AuthTokens | void> {
   if (USE_MOCK) return mockDelay(undefined);
 
-  const res = await apiClient.post('/api/auth/reissue');
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+
+  if (!refreshToken) {
+    throw new Error("Refresh token이 없습니다.");
+  }
+
+  const res = await apiClient.post('/api/auth/reissue', {
+    refreshToken,
+  });
+
   const tokens = normalizeTokens(res.data);
 
   saveTokens(tokens);
