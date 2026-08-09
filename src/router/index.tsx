@@ -1,5 +1,6 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { Navigate, createBrowserRouter } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
+import RouteErrorPage from '../components/layout/RouteErrorPage';
 import HomePage from '../pages/home/HomePage';
 import NoticeListPage from '../pages/notice/NoticeListPage';
 import NoticeDetailPage from '../pages/notice/NoticeDetailPage';
@@ -12,9 +13,14 @@ import Signup from '../pages/Signup/Signup';
 import VerifyEmail from '../pages/VerifyEmail/VerifyEmail';
 
 export const router = createBrowserRouter([
+  { path: '/login', element: <Login />, errorElement: <RouteErrorPage /> },
+  { path: '/signup', element: <Signup />, errorElement: <RouteErrorPage /> },
+  { path: '/verify', element: <VerifyEmail />, errorElement: <RouteErrorPage /> },
+  { path: '/verify-email', element: <VerifyEmail />, errorElement: <RouteErrorPage /> },
   {
     path: '/',
     element: <Layout />,
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <HomePage /> },
       { path: 'notices', element: <NoticeListPage /> },
@@ -22,20 +28,8 @@ export const router = createBrowserRouter([
       { path: 'mypage', element: <MyPage /> },
       { path: 'mypage/profile', element: <ProfileEditPage /> },
       { path: 'mypage/password', element: <PasswordChangePage /> },
+      { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
-
-  // 로그인/회원가입 라우트 추가
-  {
-    path: '/login',
-    element: <Login />,
-  },
-  {
-    path: '/signup',
-    element: <Signup />,
-  },
-  {
-    path: '/verify-email',
-    element: <VerifyEmail />,
-  },
+  { path: '*', element: <Navigate to="/" replace /> },
 ]);
