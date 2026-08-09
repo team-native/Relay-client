@@ -154,7 +154,7 @@ export default function StudyCreatePage() {
               <WheelPicker options={dayOptions} value={day} onChange={setDay} label="일" />
             </WheelPickerGroup>
             <p className="text-sm text-amber-500 mt-2">
-              선택 {year}. {month}. {day} ({weekday})
+              {year}. {month}. {day} ({weekday})
             </p>
           </div>
 
@@ -170,7 +170,7 @@ export default function StudyCreatePage() {
               />
             </WheelPickerGroup>
             <p className="text-sm text-amber-500 mt-2">
-              선택 {hour} : {pad(minute)}
+              {hour} : {pad(minute)}
             </p>
           </div>
         </div>
