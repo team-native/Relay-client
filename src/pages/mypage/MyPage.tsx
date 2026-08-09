@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Pencil, Lock, LogOut, Calendar } from 'lucide-react';
-import { getMyProfile, getEnrolledCourses } from '../../api/userApi';
+import { getMyProfile } from '../../api/userApi';
 import { STATUS_BADGE_STYLES } from '../../constants/studyStatus';
 import { useAuth } from '../../context/useAuth';
-import type { UserProfile, EnrolledCourse } from '../../types/user';
+import type { UserProfile } from '../../types/user';
 
 const SETTINGS_ITEMS = [
   { icon: Pencil, label: '프로필 수정', path: '/mypage/profile' },
@@ -13,7 +13,6 @@ const SETTINGS_ITEMS = [
 
 export default function MyPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [courses, setCourses] = useState<EnrolledCourse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,21 +25,17 @@ export default function MyPage() {
       return;
     }
 
-    async function fetchAll() {
+    async function fetchProfile() {
       try {
-        const [profileData, coursesData] = await Promise.all([
-          getMyProfile(),
-          getEnrolledCourses(),
-        ]);
+        const profileData = await getMyProfile();
         setProfile(profileData);
-        setCourses(coursesData);
       } catch {
         setError('내 정보를 불러오지 못했어요.');
       } finally {
         setIsLoading(false);
       }
     }
-    fetchAll();
+    fetchProfile();
   }, [isLoggedIn]);
 
   async function handleLogout() {
@@ -86,20 +81,26 @@ export default function MyPage() {
       </div>
 
       <h2 className="text-sm font-semibold text-gray-700 mt-8 mb-3">내가 들은 강의</h2>
-      <div className="grid grid-cols-3 gap-4">
-        {courses.map((course) => (
-          <div key={course.id} className="bg-white border border-gray-200 rounded-xl p-4">
-            <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_BADGE_STYLES[course.status]}`}>
-              {course.status}
-            </span>
-            <p className="font-semibold mt-2">{course.title}</p>
-            <div className="flex items-center gap-1.5 text-sm text-gray-400 mt-2">
-              <Calendar className="w-3.5 h-3.5 shrink-0" strokeWidth={1.8} />
-              {course.scheduledAt}
+      {profile.enrolledLectures.length === 0 ? (
+        <p className="bg-white border border-gray-200 rounded-xl py-10 text-center text-sm text-gray-400">
+          아직 신청한 릴레이 스터디가 없습니다.
+        </p>
+      ) : (
+        <div className="grid grid-cols-3 gap-4">
+          {profile.enrolledLectures.map((course) => (
+            <div key={course.id} className="bg-white border border-gray-200 rounded-xl p-4">
+              <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_BADGE_STYLES[course.status]}`}>
+                {course.status}
+              </span>
+              <p className="font-semibold mt-2">{course.title}</p>
+              <div className="flex items-center gap-1.5 text-sm text-gray-400 mt-2">
+                <Calendar className="w-3.5 h-3.5 shrink-0" strokeWidth={1.8} />
+                {course.scheduledAt}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <h2 className="text-sm font-semibold text-gray-700 mt-8 mb-3">설정</h2>
       <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">

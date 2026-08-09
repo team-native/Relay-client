@@ -5,6 +5,7 @@ export interface UserProfile {
   email: string;
   department: string;
   cohort: string;
+  enrolledLectures: EnrolledCourse[];
 }
 
 export interface EnrolledCourse {
