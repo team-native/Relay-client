@@ -119,7 +119,7 @@ export function Login({ onLoginSubmit }: LoginProps) {
               className={`w-full h-[50px] px-4 rounded-[12px] text-[14px] outline-none transition-colors duration-150 placeholder:text-[#a0a0a0] ${
                 errorMessage
                   ? "border-[1.5px] border-[#e35252] bg-[#fdf0f0] text-black"
-                  : "border border-[#d1d5db] bg-white text-black focus:border-[#2997ff]"
+                  : "border border-[#d1d5db] bg-white text-black focus:border-[#FFC83D] focus:ring-2 focus:ring-[#FFC83D]/20"
               }`}
             />
           </div>
@@ -141,7 +141,7 @@ export function Login({ onLoginSubmit }: LoginProps) {
                 className={`w-full h-[50px] pl-4 pr-12 rounded-[12px] text-[14px] outline-none transition-colors duration-150 placeholder:text-[#a0a0a0] ${
                   errorMessage
                     ? "border-[1.5px] border-[#e35252] bg-[#fdf0f0] text-black"
-                    : "border border-[#d1d5db] bg-white text-black focus:border-[#2997ff]"
+                    : "border border-[#d1d5db] bg-white text-black focus:border-[#FFC83D] focus:ring-2 focus:ring-[#FFC83D]/20"
                 }`}
               />
 
@@ -150,7 +150,7 @@ export function Login({ onLoginSubmit }: LoginProps) {
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
                 aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none p-1 flex items-center justify-center cursor-pointer"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black transition-colors focus:outline-none p-1 flex items-center justify-center cursor-pointer"
               >
                 {showPassword ? (
                   /* Eye Open Icon */
@@ -176,7 +176,7 @@ export function Login({ onLoginSubmit }: LoginProps) {
                 ) : (
                   /* Eye Slashed / Closed Icon */
                   <svg
-                    className="w-5 h-5 text-gray-400"
+                    className="w-5 h-5"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
