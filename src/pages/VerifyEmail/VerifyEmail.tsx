@@ -125,7 +125,7 @@ export function VerifyEmail() {
     try {
       await verifyEmail({ email, code });
       if (navigate) {
-        navigate("/signup", { state: { verified: true, email }, replace: true });
+        navigate("/signup", { state: { verified: true, email }});
       }
     } catch {
       setOtpError("인증번호가 일치하지 않거나 인증에 실패했습니다.");
