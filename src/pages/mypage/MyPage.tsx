@@ -62,6 +62,10 @@ export default function MyPage() {
   if (isLoading) return <p className="text-gray-500 py-10 text-center">불러오는 중...</p>;
   if (error || !profile) return <p className="text-red-500 py-10 text-center">{error ?? '정보를 찾을 수 없어요.'}</p>;
 
+  // 백엔드 기수 필드명(generation 또는 cohort) 대응
+  const rawGeneration = (profile as any).generation ?? (profile as any).cohort;
+  const generationText = rawGeneration ? `${rawGeneration}기` : '';
+
   // 수강 목록 안전하게 바인딩 (enrolledLectures 또는 lectures 대응)
   const enrolledList = (profile as any).enrolledLectures || (profile as any).lectures || [];
 
@@ -75,8 +79,8 @@ export default function MyPage() {
           <div>
             <p className="font-semibold text-lg">{profile.name}</p>
             <p className="text-sm text-gray-400">
-              {/* SMART_IOT -> 스마트IoT과 로 변환 처리 */}
-              {getDepartmentLabel(profile.department)} · {profile.cohort}
+              {/* SMART_IOT -> 스마트IoT과 변환 및 10 -> 10기 바인딩 */}
+              {getDepartmentLabel(profile.department)}{generationText ? ` · ${generationText}` : ''}
             </p>
           </div>
         </div>
