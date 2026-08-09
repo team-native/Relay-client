@@ -2,17 +2,33 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pencil } from 'lucide-react';
 import { getMyProfile, updateMyProfile } from '../../api/userApi';
-import { DEPARTMENT_OPTIONS, COHORT_OPTIONS } from '../../constants/profileOptions';
+import { 
+  DEPARTMENT_OPTIONS, 
+  COHORT_OPTIONS, 
+  DEPARTMENT_LABEL_MAP, 
+  DEPARTMENT_API_VALUES 
+} from '../../constants/profileOptions';
 import CustomSelect from '../../components/ui/CustomSelect';
 
 interface ProfileFormState {
   name: string;
   email: string;
-  department: string;
-  cohort: string;
+  department: string; // UI표시용 (예: '스마트IoT과')
+  cohort: string;     // UI표시용 (예: '10기')
 }
 
 const EMPTY_FORM: ProfileFormState = { name: '', email: '', department: '', cohort: '' };
+
+// 💡 기수 변환 도우미 함수
+const formatCohortToLabel = (cohort: string | number) => {
+  if (!cohort) return '';
+  const num = String(cohort).replace(/[^0-9]/g, '');
+  return num ? `${num}기` : '';
+};
+
+const formatCohortToValue = (cohortLabel: string) => {
+  return cohortLabel.replace(/[^0-9]/g, '');
+};
 
 export default function ProfileEditPage() {
   const navigate = useNavigate();
@@ -23,7 +39,6 @@ export default function ProfileEditPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 업로드 API 연동 전까지는 선택한 파일을 보관만 해요.
   const [_avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
@@ -32,14 +47,18 @@ export default function ProfileEditPage() {
       try {
         const data = await getMyProfile();
 
-        // 💡 타입 에러 해결: (data as any)로 generation과 cohort 필드 모두 안전하게 탐색
-        const userCohort = String((data as any).generation ?? data.cohort ?? '');
+        // 1. 기수: 백엔드의 10 또는 '10' -> '10기'로 변환
+        const rawCohort = (data as any).generation ?? data.cohort ?? '';
+        const formattedCohort = formatCohortToLabel(rawCohort);
+
+        // 2. 학과: 백엔드의 'SMART_IOT' -> '스마트IoT과'로 변환
+        const formattedDept = DEPARTMENT_LABEL_MAP[data.department] || data.department || '';
 
         setForm({
           name: data.name || '',
           email: data.email || '',
-          department: data.department || '',
-          cohort: userCohort, // "10" 형태로 들어가서 CustomSelect의 option value와 매칭
+          department: formattedDept,
+          cohort: formattedCohort,
         });
       } catch {
         setError('프로필을 불러오지 못했어요.');
@@ -85,12 +104,16 @@ export default function ProfileEditPage() {
     e.preventDefault();
     setIsSaving(true);
     setError(null);
+
     try {
-      // 💡 타입 에러 해결: UpdateProfilePayload 타입 규격에 들어있는 속성만 전달
+      // 💡 저장할 때: UI 한글 라벨 -> 백엔드 전송용 값으로 역변환
+      const apiDepartment = DEPARTMENT_API_VALUES[form.department] || form.department;
+      const apiCohort = formatCohortToValue(form.cohort);
+
       await updateMyProfile({
         name: form.name,
-        department: form.department,
-        cohort: form.cohort,
+        department: apiDepartment, // 'SMART_IOT' 전송
+        cohort: apiCohort,         // '10' 전송
       });
       navigate('/mypage');
     } catch {
@@ -161,9 +184,9 @@ export default function ProfileEditPage() {
           <div>
             <label className="block text-sm font-medium mb-1">기수</label>
             <CustomSelect
-              options={COHORT_OPTIONS}
+              options={COHORT_OPTIONS as unknown as string[]}
               value={form.cohort}
-              onChange={(value) => setForm((prev) => ({ ...prev, cohort: String(value) }))}
+              onChange={(value) => setForm((prev) => ({ ...prev, cohort: value }))}
               placeholder="기수를 선택해 주세요."
             />
           </div>
@@ -171,9 +194,9 @@ export default function ProfileEditPage() {
           <div>
             <label className="block text-sm font-medium mb-1">학과</label>
             <CustomSelect
-              options={DEPARTMENT_OPTIONS}
+              options={DEPARTMENT_OPTIONS as unknown as string[]}
               value={form.department}
-              onChange={(value) => setForm((prev) => ({ ...prev, department: String(value) }))}
+              onChange={(value) => setForm((prev) => ({ ...prev, department: value }))}
               placeholder="학과를 선택해 주세요."
             />
           </div>
