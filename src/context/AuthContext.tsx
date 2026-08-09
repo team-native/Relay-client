@@ -1,5 +1,4 @@
 import {
-  createContext,
   useEffect,
   useState,
   type ReactNode,
@@ -10,17 +9,7 @@ import {
   AUTH_TOKEN_REMOVED_EVENT,
 } from '../api/client';
 
-interface AuthContextType {
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: () => void;
-  logout: () => void;
-  checkAuthStatus: () => Promise<void>;
-}
-
-export const AuthContext = createContext<
-  AuthContextType | undefined
->(undefined);
+import { AuthContext } from './authContextValue';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -29,32 +18,13 @@ interface AuthProviderProps {
 export function AuthProvider({
   children,
 }: AuthProviderProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState(
+  const [isLoggedIn, setIsLoggedIn] = useState(
     () => Boolean(localStorage.getItem(ACCESS_TOKEN_KEY))
   );
 
-  const [isLoading, setIsLoading] = useState(true);
-
-  const checkAuthStatus = async () => {
-    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
-
-    if (!token) {
-      setIsAuthenticated(false);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsAuthenticated(true);
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    void checkAuthStatus();
-  }, []);
-
   useEffect(() => {
     const handleTokenRemoved = () => {
-      setIsAuthenticated(false);
+      setIsLoggedIn(false);
     };
 
     window.addEventListener(
@@ -71,23 +41,24 @@ export function AuthProvider({
   }, []);
 
   function login() {
-    setIsAuthenticated(true);
+    setIsLoggedIn(true);
   }
 
-  function logout() {
+  async function logout() {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
-    setIsAuthenticated(false);
+    localStorage.removeItem('relay_refresh_token');
+
+    setIsLoggedIn(false);
+
     window.location.href = '/login';
   }
 
   return (
     <AuthContext.Provider
       value={{
-        isAuthenticated,
-        isLoading,
+        isLoggedIn,
         login,
         logout,
-        checkAuthStatus,
       }}
     >
       {children}
