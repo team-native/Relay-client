@@ -10,6 +10,7 @@ import type { LayoutContext } from '../../components/layout/Layout';
 
 const VISIBLE_PARTICIPANTS = 4;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
+const CONFIRMED_PARTICIPANT_COUNT = 10;
 
 function Avatar({ name, className = '' }: { name: string; className?: string }) {
   return (
@@ -40,7 +41,7 @@ function getApplicationDeadlineText(scheduledAt: string) {
     deadline.getHours()
   ).padStart(2, '0')}:${String(deadline.getMinutes()).padStart(2, '0')}`;
 
-  if (remainingDays <= 0) return `신청 마감: ${formatted} (마감됨)`;
+  if (remainingDays <= 0) return `신청 마감: ${formatted}`;
   if (remainingDays === 1) return `신청 마감: ${formatted} (내일 마감)`;
   return `신청 마감: ${formatted} (${remainingDays}일 남음)`;
 }
@@ -110,22 +111,30 @@ export default function StudyDetailPage() {
     try {
       await applyStudy(studyId);
       setStudy((prev) =>
-        prev
-          ? {
-              ...prev,
-              isApplied: true,
-              participantCount: prev.participantCount + 1,
-              participants: [
-                {
-                  id: `me-${Date.now()}`,
-                  name: '양지우',
-                  department: '스마트IoT과',
-                  cohort: '10기',
-                },
-                ...prev.participants,
-              ],
-            }
-          : prev
+        {
+          if (!prev) return prev;
+
+          const nextParticipantCount = prev.participantCount + 1;
+
+          return {
+            ...prev,
+            status:
+              nextParticipantCount >= CONFIRMED_PARTICIPANT_COUNT && prev.status === '개설미정'
+                ? '개설확정'
+                : prev.status,
+            isApplied: true,
+            participantCount: nextParticipantCount,
+            participants: [
+              {
+                id: `me-${Date.now()}`,
+                name: '양지우',
+                department: '스마트IoT과',
+                cohort: '10기',
+              },
+              ...prev.participants,
+            ],
+          };
+        }
       );
     } catch (err) {
       setActionError(getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.'));

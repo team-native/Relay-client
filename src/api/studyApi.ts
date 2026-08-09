@@ -4,6 +4,7 @@ import { createMockStudy, mockProfile, mockStudies, mockStudyDetails } from '../
 import { mockDelay } from '../mocks/delay';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
+const CONFIRMED_PARTICIPANT_COUNT = 10;
 
 const mockStudyStore = mockStudies;
 const mockStudyDetailStore = mockStudyDetails;
@@ -57,6 +58,10 @@ export async function applyStudy(studyId: string): Promise<void> {
 
       study.participantCount += 1;
       detail.participantCount += 1;
+      if (study.participantCount >= CONFIRMED_PARTICIPANT_COUNT) {
+        study.status = '개설확정';
+        detail.status = '개설확정';
+      }
       detail.isApplied = true;
       detail.participants = [participant, ...detail.participants];
     }

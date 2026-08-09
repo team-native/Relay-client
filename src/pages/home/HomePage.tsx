@@ -8,6 +8,8 @@ import { STATUS_BADGE_STYLES, STUDY_STATUSES } from '../../constants/studyStatus
 import type { Study, StudyStatus } from '../../types/study';
 import type { LayoutContext } from '../../components/layout/Layout';
 
+const STUDIES_PER_PAGE = 6;
+
 function StudyCard({ study }: { study: Study }) {
   return (
     <Link
@@ -55,6 +57,7 @@ export default function HomePage() {
   const [activeStatus, setActiveStatus] = useState<StudyStatus>('개설미정');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { searchQuery, setSearchQuery, showToast } = useOutletContext<LayoutContext>();
   const { isLoggedIn } = useAuth();
@@ -85,10 +88,19 @@ export default function HomePage() {
     return () => setSearchQuery('');
   }, [setSearchQuery]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeStatus, searchQuery]);
+
   const keyword = searchQuery.trim().toLowerCase();
   const visibleStudies = studies.filter(
     (study) =>
       study.status === activeStatus && study.title.toLowerCase().includes(keyword)
+  );
+  const totalPages = Math.ceil(visibleStudies.length / STUDIES_PER_PAGE);
+  const pagedStudies = visibleStudies.slice(
+    (currentPage - 1) * STUDIES_PER_PAGE,
+    currentPage * STUDIES_PER_PAGE
   );
 
   return (
@@ -112,7 +124,7 @@ export default function HomePage() {
         )}
       </div>
 
-      <div className="flex items-center gap-7 border-b border-gray-200 mt-7">
+      <div className="flex items-center gap-7 border-b border-gray-200 mt-12">
         {STUDY_STATUSES.map((status) => (
           <button
             key={status}
@@ -130,20 +142,61 @@ export default function HomePage() {
         ))}
       </div>
 
-      {isLoading ? (
-        <p className="text-gray-500 mt-6">불러오는 중...</p>
-      ) : error ? (
+      {error ? (
         <p className="text-red-500 mt-6">{error}</p>
-      ) : visibleStudies.length === 0 ? (
+      ) : !isLoading && visibleStudies.length === 0 ? (
         <p className="mt-10 text-center text-sm text-gray-400">
           {keyword ? '검색 결과가 없어요.' : '아직 등록된 스터디가 없어요.'}
         </p>
-      ) : (
-        <div className="grid grid-cols-3 gap-5 mt-6">
-          {visibleStudies.map((study) => (
-            <StudyCard key={study.id} study={study} />
-          ))}
-        </div>
+      ) : null}
+
+      {pagedStudies.length > 0 && (
+        <>
+          <div className="grid grid-cols-3 gap-5 mt-6">
+            {pagedStudies.map((study) => (
+              <StudyCard key={study.id} study={study} />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-7">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+                aria-label="이전 페이지"
+                className="w-8 h-8 text-sm text-gray-500 disabled:text-gray-300"
+              >
+                &lt;
+              </button>
+
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-8 h-8 rounded-full text-sm font-medium ${
+                    page === currentPage
+                      ? 'bg-[#FFDD86] text-black'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+                aria-label="다음 페이지"
+                className="w-8 h-8 text-sm text-gray-500 disabled:text-gray-300"
+              >
+                &gt;
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

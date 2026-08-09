@@ -16,9 +16,6 @@ export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
   const location = useLocation();
   const showSearch = !location.pathname.startsWith('/mypage');
   const { isLoggedIn } = useAuth();
-  const visibleNavItems = isLoggedIn
-    ? NAV_ITEMS
-    : NAV_ITEMS.filter((item) => item.path !== '/mypage');
 
   return (
     <header className="flex items-center justify-between px-8 h-16 border-b border-gray-200 bg-white">
@@ -29,7 +26,7 @@ export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
         </Link>
 
         <nav className="flex items-center gap-8 h-16">
-          {visibleNavItems.map((item) => (
+          {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
