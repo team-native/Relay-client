@@ -36,6 +36,10 @@ function normalizeTokens(data: unknown): AuthTokens {
   const body = (data ?? {}) as {
     accessToken?: string;
     refreshToken?: string;
+    token?: {
+      accessToken?: string;
+      refreshToken?: string;
+    };
     data?: {
       accessToken?: string;
       refreshToken?: string;
@@ -43,8 +47,15 @@ function normalizeTokens(data: unknown): AuthTokens {
   };
 
   return {
-    accessToken: body.accessToken ?? body.data?.accessToken,
-    refreshToken: body.refreshToken ?? body.data?.refreshToken,
+    accessToken:
+      body.accessToken ??
+      body.token?.accessToken ??
+      body.data?.accessToken,
+
+    refreshToken:
+      body.refreshToken ??
+      body.token?.refreshToken ??
+      body.data?.refreshToken,
   };
 }
 
