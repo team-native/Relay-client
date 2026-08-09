@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { sendVerificationEmail, verifyEmail } from "../../api/authApi";
 
 interface VerifyEmailLocationState {
   email?: string;
@@ -28,6 +29,7 @@ export function VerifyEmail() {
   const [otpError, setOtpError] = useState<string>("");
   const [timeLeft, setTimeLeft] = useState<number>(180);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isResending, setIsResending] = useState<boolean>(false);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -43,36 +45,14 @@ export function VerifyEmail() {
   }, [timeLeft]);
 
   useEffect(() => {
-  otpRefs.current[0]?.focus();
-  sendEmail();
-}, []);
+    otpRefs.current[0]?.focus();
+  }, []);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(mins).padStart(2, "0")} : ${String(secs).padStart(2, "0")}`;
   };
-
-  const sendEmail = async () => {
-  if (!email) return;
-
-  try {
-    const response = await fetch("https://relayplus.kr:34308/email/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email }),
-    });
-
-    if (!response.ok) {
-      throw new Error("이메일 발송 실패");
-    }
-  } catch (error) {
-    console.error(error);
-    setOtpError("인증 메일 발송에 실패했습니다.");
-  }
-};
 
   const handleOtpChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
@@ -105,17 +85,31 @@ export function VerifyEmail() {
   };
 
   const handleResendOtp = async () => {
-  setTimeLeft(180);
-  setOtp(["", "", "", "", "", ""]);
-  setOtpError("");
-  otpRefs.current[0]?.focus();
+    if (!email || isResending) return;
 
-  await sendEmail();
-};
+    setIsResending(true);
+    setOtpError("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+    try {
+      await sendVerificationEmail(email);
+      setTimeLeft(180);
+      setOtp(["", "", "", "", "", ""]);
+      otpRefs.current[0]?.focus();
+    } catch {
+      setOtpError("인증번호 재발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const code = otp.join("");
+
+    if (!email) {
+      setOtpError("인증할 이메일 정보가 없습니다. 회원가입 페이지에서 다시 시도해주세요.");
+      return;
+    }
 
     if (timeLeft <= 0) {
       setOtpError("인증 시간이 만료되었습니다. 재발송 버튼을 눌러주세요.");
@@ -123,20 +117,25 @@ export function VerifyEmail() {
     }
 
     if (code.length < 6) {
-      setOtpError("인증번호가 일치하지 않습니다.");
+      setOtpError("인증번호 6자리를 입력해주세요.");
       return;
     }
 
     setIsSubmitting(true);
+    setOtpError("");
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      await verifyEmail({ email, code });
       if (navigate) {
         navigate("/signup", {
           state: { verified: true, email, draft: locationState.draft },
         });
       }
-    }, 400);
+    } catch {
+      setOtpError("인증번호가 일치하지 않거나 인증에 실패했습니다.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -220,9 +219,10 @@ export function VerifyEmail() {
             이메일을 받지 못하셨나요?{" "}
             <span
               onClick={handleResendOtp}
+              aria-disabled={isResending}
               className="font-bold text-gray-900 border-b-2 border-[#FFC83D] pb-0.5 cursor-pointer hover:text-[#FFC83D] transition-colors"
             >
-              재발송
+              {isResending ? "재발송 중" : "재발송"}
             </span>
           </p>
         </form>

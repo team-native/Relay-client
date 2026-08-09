@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { sendVerificationEmail, signup as signupApi } from "../../api/authApi";
-import { getServerErrorMessage } from "../../api/errors";
 import CustomSelect from "../../components/ui/CustomSelect";
 import {
   COHORT_OPTIONS,
@@ -119,8 +118,8 @@ export function Signup({ onSignupSuccess }: SignupProps) {
 
     try {
       await sendVerificationEmail(email.trim());
-    } catch (error) {
-      console.warn('Verification email request finished with an error.', error);
+    } catch {
+      // 서버가 메일을 보낸 뒤 오류 상태를 돌려주는 경우가 있어 인증 화면으로 계속 진행합니다.
     }
 
     navigate("/verify", { state: { email: email.trim(), draft } });
@@ -172,8 +171,8 @@ export function Signup({ onSignupSuccess }: SignupProps) {
 
       onSignupSuccess?.();
       navigate("/login");
-    } catch (error) {
-      setSubmitError(getServerErrorMessage(error, "회원가입에 실패했습니다. 입력한 정보를 확인해주세요."));
+    } catch {
+      setSubmitError("회원가입 정보를 다시 확인해주세요.");
     } finally {
       setIsSubmitting(false);
     }
