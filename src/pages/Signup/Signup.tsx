@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { sendVerificationEmail, signup as signupApi } from "../../api/authApi";
+import CustomSelect from "../../components/ui/CustomSelect";
+import { COHORT_OPTIONS, DEPARTMENT_OPTIONS } from "../../constants/profileOptions";
 
 export interface SignupProps {
   onSignupSuccess?: () => void;
@@ -24,20 +26,13 @@ export function Signup({ onSignupSuccess }: SignupProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [generation, setGeneration] = useState("");
-  const [isGenerationOpen, setIsGenerationOpen] = useState(false);
-
   const [major, setMajor] = useState("");
-  const [isMajorOpen, setIsMajorOpen] = useState(false);
 
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordConfirmError, setPasswordConfirmError] = useState("");
 
-  const genRef = useRef<HTMLDivElement>(null);
-  const majorRef = useRef<HTMLDivElement>(null);
-
-  // VerifyEmail 페이지에서 인증 완료 후 돌아왔을 때 상태 반영
   useEffect(() => {
     const state = (location.state as SignupLocationState) || null;
     if (state?.verified) {
@@ -45,25 +40,9 @@ export function Signup({ onSignupSuccess }: SignupProps) {
       if (state.email) {
         setEmail(state.email);
       }
-      // state를 소비한 뒤 히스토리에서 제거 (뒤로가기 시 재적용 방지)
       navigate(location.pathname, { replace: true, state: null });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (genRef.current && !genRef.current.contains(event.target as Node)) {
-        setIsGenerationOpen(false);
-      }
-      if (majorRef.current && !majorRef.current.contains(event.target as Node)) {
-        setIsMajorOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
   }, []);
 
   const emailRegex = /^s\d{5}@gsm\.hs\.kr$/;
@@ -71,7 +50,6 @@ export function Signup({ onSignupSuccess }: SignupProps) {
     emailRegex.test(email.trim()) ||
     (email.includes("@gsm.hs.kr") && email.trim().length >= 10);
 
-  // 비밀번호 정규식: 영문 대문자 최소 1개, 영문 소문자 최소 1개, 숫자 최소 1개, 8자 이상
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
   const isPasswordValid = passwordRegex.test(password);
 
@@ -171,11 +149,8 @@ export function Signup({ onSignupSuccess }: SignupProps) {
         </h1>
 
         <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
-          {/* 이름 */}
           <div className="flex flex-col">
-            <label className="text-sm font-bold text-black mb-2 block">
-              이름
-            </label>
+            <label className="text-sm font-bold text-black mb-2 block">이름</label>
             <input
               type="text"
               value={name}
@@ -185,11 +160,8 @@ export function Signup({ onSignupSuccess }: SignupProps) {
             />
           </div>
 
-          {/* 학교 이메일 */}
           <div className="flex flex-col">
-            <label className="text-sm font-bold text-black mb-2 block">
-              학교 이메일
-            </label>
+            <label className="text-sm font-bold text-black mb-2 block">학교 이메일</label>
             <div className="relative w-full">
               <input
                 type="email"
@@ -202,7 +174,6 @@ export function Signup({ onSignupSuccess }: SignupProps) {
                     : "border border-gray-300 bg-white text-gray-900 focus:border-[#FFC83D] focus:ring-2 focus:ring-[#FFC83D]/20"
                 }`}
               />
-
               <button
                 type="button"
                 onClick={handleVerifyEmail}
@@ -218,11 +189,8 @@ export function Signup({ onSignupSuccess }: SignupProps) {
                 {isEmailVerified ? "인증완료" : "인증"}
               </button>
             </div>
-
             {emailError ? (
-              <p className="text-[#e35252] text-xs font-medium mt-1.5">
-                {emailError}
-              </p>
+              <p className="text-[#e35252] text-xs font-medium mt-1.5">{emailError}</p>
             ) : (
               <p className="text-gray-400 text-xs mt-1.5">
                 s00000@gsm.hs.kr 형식의 학교 이메일만 사용할 수 있어요.
@@ -230,120 +198,30 @@ export function Signup({ onSignupSuccess }: SignupProps) {
             )}
           </div>
 
-          {/* 기수 및 학과 선택 Dropdowns */}
           <div className="flex gap-3 w-full">
-            {/* 기수 Dropdown */}
-            <div ref={genRef} className="flex-1 relative">
-              <label className="text-sm font-bold text-black mb-2 block">
-                기수
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsGenerationOpen(!isGenerationOpen);
-                  setIsMajorOpen(false);
-                }}
-                className="w-full h-12 px-4 rounded-xl border border-gray-300 bg-white hover:bg-[#FFF8E7] hover:border-[#FFC83D] text-left text-sm outline-none flex items-center justify-between cursor-pointer focus:border-[#FFC83D] focus:ring-2 focus:ring-[#FFC83D]/20 transition-all"
-              >
-                <span className={generation ? "text-gray-900 font-medium" : "text-gray-400"}>
-                  {generation || "기수 선택"}
-                </span>
-                <svg
-                  className={`w-4 h-4 text-gray-500 transition-transform ${
-                    isGenerationOpen ? "rotate-180" : "rotate-0"
-                  }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {isGenerationOpen && (
-                <div className="absolute top-[calc(100%+4px)] left-0 right-0 bg-white rounded-xl border border-gray-200 shadow-lg z-30 overflow-hidden py-1">
-                  {["8기", "9기", "10기"].map((item) => {
-                    const isSelected = generation === item;
-                    return (
-                      <div
-                        key={item}
-                        onClick={() => {
-                          setGeneration(item);
-                          setIsGenerationOpen(false);
-                        }}
-                        className={`px-4 py-2.5 text-sm cursor-pointer transition-colors ${
-                          isSelected
-                            ? "bg-[#FFF8E7] hover:bg-[#FFF8E7] font-bold text-gray-900"
-                            : "text-gray-700 hover:bg-[#FFF8E7]"
-                        }`}
-                      >
-                        {item}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+            <div className="flex-1">
+              <label className="text-sm font-bold text-black mb-2 block">기수</label>
+              <CustomSelect
+                options={COHORT_OPTIONS}
+                value={generation}
+                onChange={setGeneration}
+                placeholder="기수 선택"
+              />
             </div>
 
-            {/* 학과 Dropdown */}
-            <div ref={majorRef} className="flex-1 relative">
-              <label className="text-sm font-bold text-black mb-2 block">
-                학과
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMajorOpen(!isMajorOpen);
-                  setIsGenerationOpen(false);
-                }}
-                className="w-full h-12 px-4 rounded-xl border border-gray-300 bg-white hover:bg-[#FFF8E7] hover:border-[#FFC83D] text-left text-sm outline-none flex items-center justify-between cursor-pointer focus:border-[#FFC83D] focus:ring-2 focus:ring-[#FFC83D]/20 transition-all"
-              >
-                <span className={major ? "text-gray-900 font-medium truncate" : "text-gray-400"}>
-                  {major || "학과 선택"}
-                </span>
-                <svg
-                  className={`w-4 h-4 text-gray-500 transition-transform ${
-                    isMajorOpen ? "rotate-180" : "rotate-0"
-                  }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {isMajorOpen && (
-                <div className="absolute top-[calc(100%+4px)] left-0 right-0 bg-white rounded-xl border border-gray-200 shadow-lg z-30 overflow-hidden py-1">
-                  {["소프트웨어개발과", "스마트IoT과", "AI과"].map((item) => {
-                    const isSelected = major === item;
-                    return (
-                      <div
-                        key={item}
-                        onClick={() => {
-                          setMajor(item);
-                          setIsMajorOpen(false);
-                        }}
-                        className={`px-4 py-2.5 text-sm cursor-pointer transition-colors ${
-                          isSelected
-                            ? "bg-[#FFF8E7] hover:bg-[#FFF8E7] font-bold text-gray-900"
-                            : "text-gray-700 hover:bg-[#FFF8E7]"
-                        }`}
-                      >
-                        {item}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+            <div className="flex-1">
+              <label className="text-sm font-bold text-black mb-2 block">학과</label>
+              <CustomSelect
+                options={DEPARTMENT_OPTIONS}
+                value={major}
+                onChange={setMajor}
+                placeholder="학과 선택"
+              />
             </div>
           </div>
 
-          {/* 비밀번호 */}
           <div className="flex flex-col">
-            <label className="text-sm font-bold text-black mb-2 block">
-              비밀번호
-            </label>
+            <label className="text-sm font-bold text-black mb-2 block">비밀번호</label>
             <input
               type="password"
               value={password}
@@ -356,9 +234,7 @@ export function Signup({ onSignupSuccess }: SignupProps) {
               }`}
             />
             {passwordError ? (
-              <p className="text-[#e35252] text-xs font-medium mt-1.5">
-                {passwordError}
-              </p>
+              <p className="text-[#e35252] text-xs font-medium mt-1.5">{passwordError}</p>
             ) : (
               <p className="text-xs text-gray-400 mt-1.5">
                 <span className="text-[#FFC83D] font-bold mr-1">필수</span>
@@ -367,11 +243,8 @@ export function Signup({ onSignupSuccess }: SignupProps) {
             )}
           </div>
 
-          {/* 비밀번호 확인 */}
           <div className="flex flex-col">
-            <label className="text-sm font-bold text-black mb-2 block">
-              비밀번호 확인
-            </label>
+            <label className="text-sm font-bold text-black mb-2 block">비밀번호 확인</label>
             <input
               type="password"
               value={passwordConfirm}
@@ -384,9 +257,7 @@ export function Signup({ onSignupSuccess }: SignupProps) {
               }`}
             />
             {passwordConfirmError && (
-              <p className="text-[#e35252] text-xs font-medium mt-1.5">
-                {passwordConfirmError}
-              </p>
+              <p className="text-[#e35252] text-xs font-medium mt-1.5">{passwordConfirmError}</p>
             )}
           </div>
 
@@ -394,7 +265,6 @@ export function Signup({ onSignupSuccess }: SignupProps) {
             <p className="text-[#e35252] text-sm font-medium">{submitError}</p>
           )}
 
-          {/* 가입하기 버튼 */}
           <div className="pt-2">
             <button
               type="submit"
