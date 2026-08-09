@@ -10,10 +10,23 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+    const requestUrl = config.url ?? '';
 
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
+    // 로그인하지 않은 상태에서도 접근해야 하는 인증 API
+    const isAuthRequest =
+      requestUrl.includes('/api/auth/login') ||
+      requestUrl.includes('/api/auth/signup') ||
+      requestUrl.includes('/api/auth/email/send') ||
+      requestUrl.includes('/api/auth/email/verify') ||
+      requestUrl.includes('/api/auth/reissue');
+
+    // 인증 API가 아닌 경우에만 Access Token을 Authorization 헤더에 추가
+    if (!isAuthRequest) {
+      const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+
+      if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
+      }
     }
 
     return config;
@@ -33,8 +46,6 @@ apiClient.interceptors.response.use(
 
     const requestUrl = originalRequest?.url ?? '';
 
-    // 로그인/회원가입/이메일 인증처럼
-    // 로그인 전에 사용하는 API는 토큰 재발급을 시도하지 않는다.
     const isAuthRequest =
       requestUrl.includes('/api/auth/login') ||
       requestUrl.includes('/api/auth/signup') ||
@@ -42,6 +53,7 @@ apiClient.interceptors.response.use(
       requestUrl.includes('/api/auth/email/verify') ||
       requestUrl.includes('/api/auth/reissue');
 
+    // 인증 API의 401은 토큰 재발급을 시도하지 않음
     if (
       error.response?.status !== 401 ||
       !originalRequest ||
