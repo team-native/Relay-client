@@ -100,7 +100,7 @@ export default function StudyCreatePage() {
 
   const weekday = WEEKDAY_LABELS[new Date(year, month - 1, day).getDay()];
   const pad = (value: number) => String(value).padStart(2, '0');
-  const scheduledAt = `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
+  const scheduledAt = `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00`;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
