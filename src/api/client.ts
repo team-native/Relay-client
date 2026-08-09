@@ -26,98 +26,182 @@ function isPublicGetUrl(config: InternalAxiosRequestConfig): boolean {
 
   return (
     method === 'get' &&
-    PUBLIC_GET_PATHS.some((path) => requestUrl === path || requestUrl.startsWith(`${path}/`))
+    PUBLIC_GET_PATHS.some(
+      (path) =>
+        requestUrl === path ||
+        requestUrl.startsWith(`${path}/`)
+    )
   );
 }
 
 function removeStoredTokens() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
-  window.dispatchEvent(new Event(AUTH_TOKEN_REMOVED_EVENT));
+
+  window.dispatchEvent(
+    new Event(AUTH_TOKEN_REMOVED_EVENT)
+  );
 }
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const requestUrl = config.url ?? '';
+/**
+ * 요청 인터셉터
+ * LocalStorage에 저장된 accessToken을 Authorization 헤더에 추가
+ */
+apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const requestUrl = config.url ?? '';
 
-  if (isPublicAuthUrl(requestUrl) || isPublicGetUrl(config)) {
-    delete config.headers.Authorization;
-    config.withCredentials = false;
+    // 로그인 / 회원가입 / 이메일 인증 / 토큰 재발급
+    // 공개 API는 accessToken을 붙이지 않음
+    if (
+      isPublicAuthUrl(requestUrl) ||
+      isPublicGetUrl(config)
+    ) {
+      delete config.headers.Authorization;
+      config.withCredentials = false;
+
+      return config;
+    }
+
+    const accessToken = localStorage.getItem(
+      ACCESS_TOKEN_KEY
+    );
+
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+
     return config;
-  }
-
-  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
-  }
-
-  return config;
-});
+  },
+  (error) => Promise.reject(error)
+);
 
 let refreshPromise: Promise<string | null> | null = null;
 
+/**
+ * 응답 인터셉터
+ * 401 발생 시 refreshToken으로 accessToken 재발급
+ */
 apiClient.interceptors.response.use(
   (response) => response,
+
   async (error) => {
     const originalRequest = error.config as
-      | (InternalAxiosRequestConfig & { _retry?: boolean })
+      | (InternalAxiosRequestConfig & {
+          _retry?: boolean;
+        })
       | undefined;
 
     const requestUrl = originalRequest?.url ?? '';
     const isAuthRequest = isPublicAuthUrl(requestUrl);
 
-    if (error.response?.status !== 401 || !originalRequest || originalRequest._retry) {
+    // 401이 아니거나 이미 재시도한 요청이면 그대로 에러 반환
+    if (
+      error.response?.status !== 401 ||
+      !originalRequest ||
+      originalRequest._retry
+    ) {
       return Promise.reject(error);
     }
 
     originalRequest._retry = true;
 
-    if (isAuthRequest || isPublicGetUrl(originalRequest)) {
+    // 로그인/회원가입 등의 인증 API 또는 공개 GET에서 401이면
+    // 토큰을 제거하고 종료
+    if (
+      isAuthRequest ||
+      isPublicGetUrl(originalRequest)
+    ) {
       removeStoredTokens();
       return Promise.reject(error);
     }
 
+    const refreshToken = localStorage.getItem(
+      REFRESH_TOKEN_KEY
+    );
+
+    // refreshToken이 없으면 로그인 상태가 아님
+    if (!refreshToken) {
+      removeStoredTokens();
+      return Promise.reject(error);
+    }
+
+    // 동시에 여러 요청에서 401이 발생해도
+    // refresh 요청은 하나만 실행
     if (!refreshPromise) {
-        const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-
-        if (!refreshToken) {
-          removeStoredTokens();
-          return Promise.reject(error);
-        }
-
-        refreshPromise = apiClient
-          .post('/api/auth/reissue', {
-            refreshToken,
-          })
+      refreshPromise = apiClient
+        .post('/api/auth/reissue', {
+          refreshToken,
+        })
         .then((response) => {
           const data = response.data as {
             accessToken?: string;
             refreshToken?: string;
+
             data?: {
+              accessToken?: string;
+              refreshToken?: string;
+
+              token?: {
+                accessToken?: string;
+                refreshToken?: string;
+              };
+            };
+
+            token?: {
               accessToken?: string;
               refreshToken?: string;
             };
           };
 
+          // 백엔드 응답:
+          // {
+          //   data: {
+          //     token: {
+          //       accessToken: "...",
+          //       refreshToken: "..."
+          //     }
+          //   }
+          // }
+
           const newAccessToken =
-            data.accessToken ?? data.data?.accessToken ?? null;
+            data.accessToken ??
+            data.token?.accessToken ??
+            data.data?.accessToken ??
+            data.data?.token?.accessToken ??
+            null;
 
           const newRefreshToken =
-            data.refreshToken ?? data.data?.refreshToken ?? null;
+            data.refreshToken ??
+            data.token?.refreshToken ??
+            data.data?.refreshToken ??
+            data.data?.token?.refreshToken ??
+            null;
 
           if (!newAccessToken) {
-            throw new Error('재발급된 accessToken이 없습니다.');
+            throw new Error(
+              '재발급된 accessToken이 없습니다.'
+            );
           }
 
-          localStorage.setItem(ACCESS_TOKEN_KEY, newAccessToken);
+          localStorage.setItem(
+            ACCESS_TOKEN_KEY,
+            newAccessToken
+          );
 
           if (newRefreshToken) {
-            localStorage.setItem(REFRESH_TOKEN_KEY, newRefreshToken);
+            localStorage.setItem(
+              REFRESH_TOKEN_KEY,
+              newRefreshToken
+            );
           }
 
           return newAccessToken;
@@ -137,8 +221,13 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+    // 원래 요청에 새 accessToken 적용
+    originalRequest.headers.Authorization =
+      `Bearer ${newAccessToken}`;
 
+    // 원래 요청 다시 실행
     return apiClient(originalRequest);
   }
 );
+
+export default apiClient;
