@@ -34,7 +34,7 @@ export default function NoticeDetailPage() {
   return (
     <div>
         <button
-        onClick={() => navigate('/notices')}
+        onClick={() => navigate('/notice')}
         className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800"
         >
         <ChevronLeft className="w-4 h-4" strokeWidth={1.8} />

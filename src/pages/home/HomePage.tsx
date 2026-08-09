@@ -13,7 +13,7 @@ const STUDIES_PER_PAGE = 6;
 function StudyCard({ study }: { study: Study }) {
   return (
     <Link
-      to={`/studies/${study.id}`}
+      to={`/lecture/${study.id}`}
       className="block bg-white border border-gray-200 rounded-xl px-6 pt-6 pb-5 hover:border-[#FFDD86] transition-colors"
     >
       <div className="flex items-center justify-between">
@@ -115,7 +115,7 @@ export default function HomePage() {
 
         {activeStatus === '개설미정' && (
           <Link
-            to="/studies/new"
+            to="/new"
             onClick={handleCreateClick}
             className="flex items-center gap-2 shrink-0 bg-[#FFDD86] text-black text-sm font-medium rounded-full px-5 py-2.5 hover:brightness-95 transition"
           >

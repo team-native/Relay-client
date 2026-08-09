@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useInRouterContext } from "react-router-dom";
+import { login as loginApi } from "../../api/authApi";
 import { useAuth } from "../../context/useAuth";
 
 export interface LoginProps {
@@ -66,26 +67,13 @@ export function Login({ onLoginSubmit }: LoginProps) {
     try {
       if (onLoginSubmit) {
         await onLoginSubmit({ email, password });
-        login();
-        if (navigate) {
-          navigate("/");
-        }
       } else {
-        // 백엔드 미연동 시 기본 시뮬레이션 로직
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        await loginApi({ email, password });
+      }
 
-        // 간단한 검증 예시
-        if (!email.endsWith("@gsm.hs.kr") || password.length < 8) {
-          setErrorMessage("이메일 또는 비밀번호가 일치하지 않습니다.");
-          setIsSubmitting(false);
-          return;
-        }
-
-        // 로그인 성공 시 메인 페이지 이동
-        login();
-        if (navigate) {
-          navigate("/");
-        }
+      login();
+      if (navigate) {
+        navigate("/home");
       }
     } catch {
       setErrorMessage("이메일 또는 비밀번호가 일치하지 않습니다.");

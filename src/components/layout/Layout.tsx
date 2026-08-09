@@ -18,7 +18,7 @@ export default function Layout() {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 홈은 카드 그리드가 화면을 꽉 채우도록 더 넓게 써요.
-  const isHome = location.pathname === '/';
+  const isHome = location.pathname === '/' || location.pathname === '/home';
 
   useEffect(() => {
     return () => {

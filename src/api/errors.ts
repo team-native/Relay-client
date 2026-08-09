@@ -7,8 +7,17 @@ export const LOGIN_REQUIRED_MESSAGE = '로그인 후 이용해주세요.';
 export function getServerErrorMessage(error: unknown, fallback: string): string {
   if (!axios.isAxiosError(error)) return fallback;
 
-  const serverMessage = (error.response?.data as { message?: string } | undefined)?.message;
-  if (serverMessage) return serverMessage;
+  const data = error.response?.data as
+    | { message?: string; error?: string }
+    | string
+    | undefined;
+
+  if (typeof data === 'string' && data.trim()) return data;
+  if (data && typeof data === 'object') {
+    if (data.message) return data.message;
+    if (data.error) return data.error;
+  }
+
   if (error.response?.status === 401) return LOGIN_REQUIRED_MESSAGE;
 
   return fallback;
