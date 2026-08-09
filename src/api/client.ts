@@ -8,31 +8,45 @@ export const apiClient = axios.create({
   withCredentials: true,
 });
 
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
 
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    return config;
   }
-
-  return config;
-});
+);
 
 let refreshPromise: Promise<string | null> | null = null;
 
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config as (InternalAxiosRequestConfig & {
-      _retry?: boolean;
-    }) | undefined;
+    const originalRequest = error.config as
+      | (InternalAxiosRequestConfig & {
+          _retry?: boolean;
+        })
+      | undefined;
+
+    const requestUrl = originalRequest?.url ?? '';
+
+    // 로그인/회원가입/이메일 인증처럼
+    // 로그인 전에 사용하는 API는 토큰 재발급을 시도하지 않는다.
+    const isAuthRequest =
+      requestUrl.includes('/api/auth/login') ||
+      requestUrl.includes('/api/auth/signup') ||
+      requestUrl.includes('/api/auth/email/send') ||
+      requestUrl.includes('/api/auth/email/verify') ||
+      requestUrl.includes('/api/auth/reissue');
 
     if (
       error.response?.status !== 401 ||
       !originalRequest ||
       originalRequest._retry ||
-      originalRequest.url?.includes('/reissue') ||
-      originalRequest.url?.includes('/login')
+      isAuthRequest
     ) {
       return Promise.reject(error);
     }
@@ -41,22 +55,38 @@ apiClient.interceptors.response.use(
 
     if (!refreshPromise) {
       refreshPromise = apiClient
-        .post('/reissue')
+        .post('/api/auth/reissue')
         .then((response) => {
           const data = response.data as {
             accessToken?: string;
             refreshToken?: string;
-            data?: { accessToken?: string; refreshToken?: string };
+            data?: {
+              accessToken?: string;
+              refreshToken?: string;
+            };
           };
 
-          const accessToken = data.accessToken ?? data.data?.accessToken ?? null;
-          const refreshToken = data.refreshToken ?? data.data?.refreshToken;
+          const accessToken =
+            data.accessToken ??
+            data.data?.accessToken ??
+            null;
+
+          const refreshToken =
+            data.refreshToken ??
+            data.data?.refreshToken;
 
           if (accessToken) {
-            localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+            localStorage.setItem(
+              ACCESS_TOKEN_KEY,
+              accessToken
+            );
           }
+
           if (refreshToken) {
-            localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+            localStorage.setItem(
+              REFRESH_TOKEN_KEY,
+              refreshToken
+            );
           }
 
           return accessToken;
@@ -64,6 +94,7 @@ apiClient.interceptors.response.use(
         .catch(() => {
           localStorage.removeItem(ACCESS_TOKEN_KEY);
           localStorage.removeItem(REFRESH_TOKEN_KEY);
+
           return null;
         })
         .finally(() => {
@@ -77,7 +108,9 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+    originalRequest.headers.Authorization =
+      `Bearer ${accessToken}`;
+
     return apiClient(originalRequest);
   }
 );
