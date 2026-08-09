@@ -7,6 +7,10 @@ import MyPage from '../pages/mypage/MyPage';
 import ProfileEditPage from '../pages/mypage/ProfileEditPage';
 import PasswordChangePage from '../pages/mypage/PasswordChangePage';
 
+import Login from '../pages/Login/Login';
+import Signup from '../pages/Signup/Signup';
+import VerifyEmail from '../pages/VerifyEmail/VerifyEmail';
+
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -19,5 +23,19 @@ export const router = createBrowserRouter([
       { path: 'mypage/profile', element: <ProfileEditPage /> },
       { path: 'mypage/password', element: <PasswordChangePage /> },
     ],
+  },
+
+  // 로그인/회원가입 라우트 추가
+  {
+    path: '/login',
+    element: <Login />,
+  },
+  {
+    path: '/signup',
+    element: <Signup />,
+  },
+  {
+    path: '/verify-email',
+    element: <VerifyEmail />,
   },
 ]);

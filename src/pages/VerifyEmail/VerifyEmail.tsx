@@ -42,6 +42,8 @@ export function VerifyEmail() {
 
   useEffect(() => {
     otpRefs.current[0]?.focus();
+
+    sendEmail();
   }, []);
 
   const formatTime = (seconds: number) => {
@@ -49,6 +51,27 @@ export function VerifyEmail() {
     const secs = seconds % 60;
     return `${String(mins).padStart(2, "0")} : ${String(secs).padStart(2, "0")}`;
   };
+
+  const sendEmail = async () => {
+  if (!email) return;
+
+  try {
+    const response = await fetch("https://relayplus.kr:34308/email/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      throw new Error("이메일 발송 실패");
+    }
+  } catch (error) {
+    console.error(error);
+    setOtpError("인증 메일 발송에 실패했습니다.");
+  }
+};
 
   const handleOtpChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
@@ -80,12 +103,14 @@ export function VerifyEmail() {
     }
   };
 
-  const handleResendOtp = () => {
-    setTimeLeft(180);
-    setOtp(["", "", "", "", "", ""]);
-    setOtpError("");
-    otpRefs.current[0]?.focus();
-  };
+  const handleResendOtp = async () => {
+  setTimeLeft(180);
+  setOtp(["", "", "", "", "", ""]);
+  setOtpError("");
+  otpRefs.current[0]?.focus();
+
+  await sendEmail();
+};
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
