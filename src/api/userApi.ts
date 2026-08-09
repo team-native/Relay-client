@@ -8,14 +8,14 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 export async function getMyProfile(): Promise<UserProfile> {
   if (USE_MOCK) return mockProfile;
 
-  const res = await apiClient.get<UserProfile>('/mypage');
+  const res = await apiClient.get<UserProfile>('/api/mypage');
   return res.data;
 }
 
 export async function getEnrolledCourses(): Promise<EnrolledCourse[]> {
   if (USE_MOCK) return mockCourses;
 
-  const res = await apiClient.get<EnrolledCourse[]>('/enrollments');
+  const res = await apiClient.get<EnrolledCourse[]>('/api/enrollments');
   return res.data;
 }
 
@@ -24,7 +24,7 @@ export type UpdateProfilePayload = Pick<UserProfile, 'name' | 'department' | 'co
 export async function updateMyProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
   if (USE_MOCK) return mockDelay({ ...mockProfile, ...payload });
 
-  const res = await apiClient.put<UserProfile>('/mypage/profile', payload);
+  const res = await apiClient.put<UserProfile>('/api/mypage/profile', payload);
   return res.data;
 }
 
@@ -41,5 +41,5 @@ export async function changePassword(payload: ChangePasswordPayload): Promise<vo
     return mockDelay(undefined);
   }
 
-  await apiClient.put('/mypage/password', payload);
+  await apiClient.put('/api/mypage/password', payload);
 }

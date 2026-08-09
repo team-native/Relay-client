@@ -4,11 +4,11 @@ export const ACCESS_TOKEN_KEY = 'relay_access_token';
 export const REFRESH_TOKEN_KEY = 'relay_refresh_token';
 
 const PUBLIC_AUTH_PATHS = [
-  '/auth/login',
-  '/auth/signup',
-  '/auth/email/send',
-  '/auth/email/verify',
-  '/auth/reissue',
+  '/api/auth/login',
+  '/api/auth/signup',
+  '/api/auth/email/send',
+  '/api/auth/email/verify',
+  '/api/auth/reissue',
 ];
 
 function isPublicAuthUrl(url: string): boolean {
@@ -63,7 +63,7 @@ apiClient.interceptors.response.use(
 
     if (!refreshPromise) {
       refreshPromise = apiClient
-        .post('/auth/reissue')
+        .post('/api/auth/reissue')
         .then((response) => {
           const data = response.data as {
             accessToken?: string;

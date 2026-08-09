@@ -25,7 +25,7 @@ export async function getStudies(): Promise<Study[]> {
     return mockDelay(mockStudyStore.map((study) => ({ ...study })));
   }
 
-  const res = await apiClient.get<Study[]>('/studies');
+  const res = await apiClient.get<Study[]>('/api/studies');
   return res.data;
 }
 
@@ -52,7 +52,7 @@ export async function getStudyDetail(
     });
   }
 
-  const res = await apiClient.get<StudyDetail>(`/studies/${studyId}`);
+  const res = await apiClient.get<StudyDetail>(`/api/studies/${studyId}`);
   return res.data;
 }
 
@@ -67,7 +67,7 @@ export async function createStudy(
     return mockDelay({ ...created });
   }
 
-  const res = await apiClient.post<Study>('/studies', payload);
+  const res = await apiClient.post<Study>('/api/studies', payload);
   return res.data;
 }
 
@@ -99,7 +99,7 @@ export async function applyStudy(studyId: string): Promise<void> {
     return mockDelay(undefined);
   }
 
-  await apiClient.post('/enrollments', {
+  await apiClient.post('/api/enrollments', {
     lectureId: studyId,
   });
 }
@@ -132,7 +132,7 @@ export async function cancelStudyApplication(
     return mockDelay(undefined);
   }
 
-  await apiClient.delete(`/enrollments/${studyId}`);
+  await apiClient.delete(`/api/enrollments/${studyId}`);
 }
 
 export async function createStudyComment(
@@ -151,7 +151,7 @@ export async function createStudyComment(
   }
 
   const res = await apiClient.post<StudyComment>(
-    `/studies/${studyId}/comments`,
+    `/api/studies/${studyId}/comments`,
     { content }
   );
 
