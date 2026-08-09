@@ -34,5 +34,5 @@ export async function changePassword(payload: ChangePasswordPayload): Promise<vo
     return mockDelay(undefined);
   }
 
-  await apiClient.put('/api/users/myPage/password', payload);
+  await apiClient.patch('/api/users/myPage/password', payload);
 }
