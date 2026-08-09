@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 interface VerifyEmailLocationState {
   email?: string;
+  draft?: unknown;
 }
 
 export function VerifyEmail() {
@@ -20,7 +21,8 @@ export function VerifyEmail() {
     location = null;
   }
 
-  const email = ((location?.state as VerifyEmailLocationState) || {}).email || "";
+  const locationState = (location?.state as VerifyEmailLocationState) || {};
+  const email = locationState.email || "";
 
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [otpError, setOtpError] = useState<string>("");
@@ -130,7 +132,9 @@ export function VerifyEmail() {
     setTimeout(() => {
       setIsSubmitting(false);
       if (navigate) {
-        navigate("/signup", { state: { verified: true, email } });
+        navigate("/signup", {
+          state: { verified: true, email, draft: locationState.draft },
+        });
       }
     }, 400);
   };

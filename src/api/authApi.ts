@@ -1,6 +1,7 @@
 import {
   apiClient,
   ACCESS_TOKEN_KEY,
+  AUTH_TOKEN_REMOVED_EVENT,
   REFRESH_TOKEN_KEY,
 } from './client';
 import { mockDelay } from '../mocks/delay';
@@ -77,6 +78,7 @@ export async function logout(): Promise<void> {
   } finally {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
+    window.dispatchEvent(new Event(AUTH_TOKEN_REMOVED_EVENT));
   }
 }
 

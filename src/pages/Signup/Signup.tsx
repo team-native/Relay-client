@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { sendVerificationEmail, signup as signupApi } from "../../api/authApi";
+import { getServerErrorMessage } from "../../api/errors";
 import CustomSelect from "../../components/ui/CustomSelect";
 import { COHORT_OPTIONS, DEPARTMENT_OPTIONS } from "../../constants/profileOptions";
 
@@ -12,33 +13,56 @@ export interface SignupProps {
 interface SignupLocationState {
   verified?: boolean;
   email?: string;
+  draft?: SignupDraft;
+}
+
+interface SignupDraft {
+  name: string;
+  email: string;
+  generation: string;
+  major: string;
+  password: string;
+  passwordConfirm: string;
 }
 
 export function Signup({ onSignupSuccess }: SignupProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const locationState = (location.state as SignupLocationState) || null;
+  const initialDraft = locationState?.draft;
+
+  const [name, setName] = useState(initialDraft?.name ?? "");
+  const [email, setEmail] = useState(locationState?.email ?? initialDraft?.email ?? "");
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [generation, setGeneration] = useState("");
-  const [major, setMajor] = useState("");
+  const [generation, setGeneration] = useState(initialDraft?.generation ?? "");
+  const [major, setMajor] = useState(initialDraft?.major ?? "");
 
-  const [password, setPassword] = useState("");
-  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [password, setPassword] = useState(initialDraft?.password ?? "");
+  const [passwordConfirm, setPasswordConfirm] = useState(initialDraft?.passwordConfirm ?? "");
   const [passwordError, setPasswordError] = useState("");
   const [passwordConfirmError, setPasswordConfirmError] = useState("");
 
   useEffect(() => {
     const state = (location.state as SignupLocationState) || null;
+    if (state?.draft) {
+      setName(state.draft.name);
+      setGeneration(state.draft.generation);
+      setMajor(state.draft.major);
+      setPassword(state.draft.password);
+      setPasswordConfirm(state.draft.passwordConfirm);
+    }
+
     if (state?.verified) {
       setIsEmailVerified(true);
       if (state.email) {
         setEmail(state.email);
+      } else if (state.draft?.email) {
+        setEmail(state.draft.email);
       }
       navigate(location.pathname, { replace: true, state: null });
     }
@@ -80,12 +104,22 @@ export function Signup({ onSignupSuccess }: SignupProps) {
     }
 
     setEmailError("");
+    const draft: SignupDraft = {
+      name,
+      email: email.trim(),
+      generation,
+      major,
+      password,
+      passwordConfirm,
+    };
+
     try {
       await sendVerificationEmail(email.trim());
-      navigate("/verify", { state: { email: email.trim() } });
     } catch (error) {
-      setEmailError("인증 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      console.warn('Verification email request finished with an error.', error);
     }
+
+    navigate("/verify", { state: { email: email.trim(), draft } });
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,8 +168,8 @@ export function Signup({ onSignupSuccess }: SignupProps) {
 
       onSignupSuccess?.();
       navigate("/login");
-    } catch {
-      setSubmitError("회원가입에 실패했습니다. 입력한 정보를 확인해주세요.");
+    } catch (error) {
+      setSubmitError(getServerErrorMessage(error, "회원가입에 실패했습니다. 입력한 정보를 확인해주세요."));
     } finally {
       setIsSubmitting(false);
     }
