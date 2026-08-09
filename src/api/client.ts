@@ -3,57 +3,53 @@ import axios, { type InternalAxiosRequestConfig } from 'axios';
 export const ACCESS_TOKEN_KEY = 'relay_access_token';
 export const REFRESH_TOKEN_KEY = 'relay_refresh_token';
 
+const PUBLIC_AUTH_PATHS = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/email/send',
+  '/auth/email/verify',
+  '/auth/reissue',
+];
+
+function isPublicAuthUrl(url: string): boolean {
+  return PUBLIC_AUTH_PATHS.some((path) => url.includes(path));
+}
+
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   withCredentials: true,
 });
 
-apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const requestUrl = config.url ?? '';
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const requestUrl = config.url ?? '';
 
-    const isPublicAuthApi =
-      requestUrl.includes('/auth/login') ||
-      requestUrl.includes('/auth/signup') ||
-      requestUrl.includes('/auth/email/send') ||
-      requestUrl.includes('/auth/email/verify') ||
-      requestUrl.includes('/auth/reissue');
-
-    if (isPublicAuthApi) {
-      delete config.headers.Authorization;
-      return config;
-    }
-
-    const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
-    }
-
+  if (isPublicAuthUrl(requestUrl)) {
+    delete config.headers.Authorization;
+    config.withCredentials = false;
     return config;
   }
-);
+
+  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  return config;
+});
+
 let refreshPromise: Promise<string | null> | null = null;
 
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config as
-      | (InternalAxiosRequestConfig & {
-          _retry?: boolean;
-        })
+      | (InternalAxiosRequestConfig & { _retry?: boolean })
       | undefined;
 
     const requestUrl = originalRequest?.url ?? '';
+    const isAuthRequest = isPublicAuthUrl(requestUrl);
 
-    const isAuthRequest =
-      requestUrl.includes('/api/auth/login') ||
-      requestUrl.includes('/api/auth/signup') ||
-      requestUrl.includes('/api/auth/email/send') ||
-      requestUrl.includes('/api/auth/email/verify') ||
-      requestUrl.includes('/api/auth/reissue');
-
-    // 인증 API의 401은 토큰 재발급을 시도하지 않음
     if (
       error.response?.status !== 401 ||
       !originalRequest ||
@@ -67,7 +63,7 @@ apiClient.interceptors.response.use(
 
     if (!refreshPromise) {
       refreshPromise = apiClient
-        .post('/api/auth/reissue')
+        .post('/auth/reissue')
         .then((response) => {
           const data = response.data as {
             accessToken?: string;
@@ -78,27 +74,14 @@ apiClient.interceptors.response.use(
             };
           };
 
-          const accessToken =
-            data.accessToken ??
-            data.data?.accessToken ??
-            null;
-
-          const refreshToken =
-            data.refreshToken ??
-            data.data?.refreshToken;
+          const accessToken = data.accessToken ?? data.data?.accessToken ?? null;
+          const refreshToken = data.refreshToken ?? data.data?.refreshToken;
 
           if (accessToken) {
-            localStorage.setItem(
-              ACCESS_TOKEN_KEY,
-              accessToken
-            );
+            localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
           }
-
           if (refreshToken) {
-            localStorage.setItem(
-              REFRESH_TOKEN_KEY,
-              refreshToken
-            );
+            localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
           }
 
           return accessToken;
@@ -106,7 +89,6 @@ apiClient.interceptors.response.use(
         .catch(() => {
           localStorage.removeItem(ACCESS_TOKEN_KEY);
           localStorage.removeItem(REFRESH_TOKEN_KEY);
-
           return null;
         })
         .finally(() => {
@@ -120,9 +102,7 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    originalRequest.headers.Authorization =
-      `Bearer ${accessToken}`;
-
+    originalRequest.headers.Authorization = `Bearer ${accessToken}`;
     return apiClient(originalRequest);
   }
 );
