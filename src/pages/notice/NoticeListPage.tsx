@@ -5,23 +5,58 @@ import { useAuth } from '../../context/useAuth';
 import type { Notice } from '../../types/notice';
 import type { LayoutContext } from '../../components/layout/Layout';
 
+// 🛠️ JWT 토큰을 파싱하여 payload 내부의 role을 꺼내는 함수
+function getRoleFromToken(): string | null {
+  try {
+    const token =
+      localStorage.getItem('relay_access_token') ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('accessToken');
+
+    if (!token) return null;
+
+    // JWT 토큰 structure: header.payload.signature
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+
+    const parsed = JSON.parse(jsonPayload);
+    return parsed?.role || parsed?.auth || parsed?.roles?.[0] || null;
+  } catch (e) {
+    console.error('토큰 파싱 실패:', e);
+    return null;
+  }
+}
+
 export default function NoticeListPage() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const navigate = useNavigate();
   const { searchQuery, setSearchQuery } = useOutletContext<LayoutContext>();
 
-  // 🛠️ 타입 단언 적용 (AuthContextValue 타입 미비 해결)
+  // 🛠️ Auth Context + LocalStorage + JWT Token 디코딩으로 어드민 판단
   const auth = useAuth() as Record<string, any>;
   const user = auth?.user || auth?.userInfo || auth;
-  const isAdmin = user?.role === 'ADMIN';
+  const tokenRole = getRoleFromToken();
+  const role = user?.role || auth?.role || localStorage.getItem('role') || tokenRole;
+  
+  const isAdmin = role === 'ADMIN';
 
   useEffect(() => {
     async function fetchNotices() {
       try {
         setIsLoading(true);
         const res: any = await getNotices();
+
         const noticeList = Array.isArray(res)
           ? res
           : Array.isArray(res?.data)
@@ -44,8 +79,8 @@ export default function NoticeListPage() {
     return () => setSearchQuery('');
   }, [setSearchQuery]);
 
-  if (isLoading) return <p className="text-gray-500">불러오는 중...</p>;
-  if (error) return <p className="text-red-500">{error}</p>;
+  if (isLoading) return <p className="text-gray-500 py-10 text-center">불러오는 중...</p>;
+  if (error) return <p className="text-red-500 py-10 text-center">{error}</p>;
 
   const filteredNotices = notices.filter(
     (notice) =>
@@ -57,10 +92,10 @@ export default function NoticeListPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">공지사항</h1>
-          <p className="text-sm text-gray-400 mt-1">
-            운영팀이 전달하는 소식을 확인하세요.
-          </p>
+          <p className="text-gray-400 mt-1">운영팀이 전달하는 소식을 확인하세요.</p>
         </div>
+
+        {/* 🛠️ ADMIN 계정일 때만 공지사항 작성 버튼 노출 */}
         {isAdmin && (
           <button
             type="button"
