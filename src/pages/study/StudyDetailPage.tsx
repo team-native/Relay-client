@@ -5,7 +5,7 @@ import { applyStudy, createStudyComment, getStudyDetail } from '../../api/studyA
 import { getServerErrorMessage, LOGIN_REQUIRED_MESSAGE } from '../../api/errors';
 import { useAuth } from '../../context/useAuth';
 import { STATUS_BADGE_STYLES } from '../../constants/studyStatus';
-import type { StudyComment, StudyDetail, StudyStatus } from '../../types/study';
+import type { StudyDetail, StudyStatus } from '../../types/study';
 import type { LayoutContext } from '../../components/layout/Layout';
 
 const VISIBLE_PARTICIPANTS = 4;
@@ -68,19 +68,31 @@ function isApplicationDeadlinePassed(scheduledAt?: string) {
   return deadline ? deadline.getTime() <= Date.now() : false;
 }
 
-function CommentItem({ comment }: { comment: StudyComment }) {
+// 댓글 아이템 (백엔드 필드 호환)
+function CommentItem({ comment }: { comment: any }) {
+  const authorName = comment.authorName || comment.author || '익명';
+  const department = comment.authorDepartment || comment.department || '';
+  const cohort = comment.authorGeneration
+    ? `${comment.authorGeneration}기`
+    : comment.cohort
+      ? `${comment.cohort}`
+      : '';
+  const createdAt = comment.timeAgo || comment.createdAt || '';
+
   return (
     <li className="flex gap-3">
-      <Avatar name={comment.author} className="w-9 h-9 text-sm" />
+      <Avatar name={authorName} className="w-9 h-9 text-sm" />
       <div className="min-w-0">
-        <p className="text-sm font-semibold">{comment.author || '익명'}</p>
-        <p className="text-xs text-gray-400 mt-0.5">
-          {comment.department} · {comment.cohort}
-        </p>
+        <p className="text-sm font-semibold">{authorName}</p>
+        {(department || cohort) && (
+          <p className="text-xs text-gray-400 mt-0.5">
+            {[department, cohort].filter(Boolean).join(' · ')}
+          </p>
+        )}
         <p className="text-sm text-gray-800 mt-2 whitespace-pre-line break-words">
           {comment.content}
         </p>
-        <p className="text-xs text-gray-300 mt-1.5">{comment.createdAt}</p>
+        {createdAt && <p className="text-xs text-gray-300 mt-1.5">{createdAt}</p>}
       </div>
     </li>
   );
@@ -107,11 +119,27 @@ export default function StudyDetailPage() {
       try {
         const response = await getStudyDetail(studyId!);
         
-        // 🌟 타입 에러 해소를 위해 any로 단서 제공 + data 감싸기 처리
         const rawResponse = response as any;
         const rawData = rawResponse?.data || rawResponse || {};
 
         const singlePresenter = rawData.presenter;
+
+        // 🌟 백엔드의 다양한 참가자 목록/인원수/신청여부 필드 호환 처리
+        const rawParticipants = rawData.participants || rawData.enrollments || rawData.appliedUsers || [];
+        
+        const mappedParticipants = rawParticipants.map((p: any, idx: number) => ({
+          id: p.id || p.userId || `p-${idx}`,
+          name: p.name || p.authorName || p.userName || '참가자',
+          department: p.department || p.authorDepartment || '',
+          cohort: p.cohort || (p.authorGeneration ? `${p.authorGeneration}기` : ''),
+        }));
+
+        const actualParticipantCount =
+          rawData.participantCount ??
+          rawData.currentParticipants ??
+          rawData.appliedCount ??
+          mappedParticipants.length ??
+          0;
 
         const formattedData: StudyDetail = {
           id: rawData.id ?? studyId,
@@ -120,16 +148,20 @@ export default function StudyDetailPage() {
           status: SERVER_TO_UI_STATUS[rawData.status] || rawData.status || '개설미정',
           scheduledAt: rawData.scheduledAt,
           createdAt: rawData.createdAt,
-          isApplied: rawData.isApplied ?? false,
-          capacity: rawData.capacity ?? 0,
-          participantCount: rawData.participantCount ?? rawData.participants?.length ?? 0,
+          
+          // 백엔드의 isApplied / applied 여부 반영
+          isApplied: Boolean(rawData.isApplied ?? rawData.applied ?? false),
+          
+          capacity: rawData.capacity ?? rawData.maxParticipants ?? 0,
+          participantCount: actualParticipantCount,
           commentCount: rawData.commentCount ?? rawData.comments?.length ?? 0,
+          
           author: rawData.author || {
             name: singlePresenter || '익명',
             department: '',
             cohort: '',
           },
-          participants: rawData.participants || [],
+          participants: mappedParticipants,
           comments: rawData.comments || [],
           presenters:
             rawData.presenters && rawData.presenters.length > 0
@@ -202,7 +234,10 @@ export default function StudyDetailPage() {
     setIsPostingComment(true);
     setActionError(null);
     try {
-      const created = await createStudyComment(studyId, commentDraft.trim());
+      const response = await createStudyComment(studyId, commentDraft.trim());
+      
+      const created = (response as any)?.data || response;
+
       setStudy((prev) =>
         prev
           ? {
@@ -332,8 +367,8 @@ export default function StudyDetailPage() {
             <p className="text-sm text-gray-400 mt-4">첫 댓글을 남겨보세요.</p>
           ) : (
             <ul className="mt-4 space-y-5">
-              {study.comments.map((comment) => (
-                <CommentItem key={comment.id} comment={comment} />
+              {study.comments.map((comment, index) => (
+                <CommentItem key={comment.id || index} comment={comment} />
               ))}
             </ul>
           )}
