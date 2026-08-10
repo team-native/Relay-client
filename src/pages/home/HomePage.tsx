@@ -10,18 +10,18 @@ import type { LayoutContext } from '../../components/layout/Layout';
 
 const STUDIES_PER_PAGE = 6;
 
-// 프론트 UI 상태(한글) <-> 서버 API 상태(Enum) 매핑
+// 백엔드 Enum과 프론트 탭 UI 매핑
 const STATUS_MAP: Record<StudyStatus, string> = {
   '개설미정': 'PENDING',
   '개설확정': 'CONFIRMED',
   '종료': 'FINISHED',
 };
 
-function StudyCard({ study }: { study: Study }) {
-  // 백엔드에서 presenters가 배열이 아닌 단일 문자열로 넘어올 경우를 위한 안전장치
-  const presentersText = Array.isArray(study.presenters)
+function StudyCard({ study }: { study: any }) {
+  // presenters가 배열이면 join, 백엔드에서 presenter(문자열)로 오면 해당 값 표시
+  const presenterText = Array.isArray(study.presenters)
     ? study.presenters.join(', ')
-    : study.presenters || '';
+    : study.presenter || study.presenters || '발표자 없음';
 
   return (
     <Link
@@ -30,11 +30,15 @@ function StudyCard({ study }: { study: Study }) {
     >
       <div className="flex items-center justify-between">
         <span
-          className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_BADGE_STYLES[study.status] || 'bg-gray-100 text-gray-600'}`}
+          className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${
+            STATUS_BADGE_STYLES[study.status as StudyStatus] || 'bg-gray-100 text-gray-600'
+          }`}
         >
           {study.status}
         </span>
-        <span className="text-xs text-gray-400">{study.createdAt} 등록</span>
+        <span className="text-xs text-gray-400">
+          {study.createdAt ? `${study.createdAt} 등록` : ''}
+        </span>
       </div>
 
       <h3 className="font-bold text-lg mt-5">{study.title}</h3>
@@ -42,22 +46,22 @@ function StudyCard({ study }: { study: Study }) {
       <div className="mt-5 space-y-3 text-sm text-gray-500">
         <p className="flex items-center gap-2">
           <User className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          {presentersText}
+          {presenterText}
         </p>
         <p className="flex items-center gap-2">
           <Calendar className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          {study.scheduledAt}
+          {study.scheduledAt ? String(study.scheduledAt).replace('T', ' ') : ''}
         </p>
       </div>
 
       <div className="flex items-center justify-between border-t border-gray-100 mt-8 pt-4 text-sm text-gray-400">
         <span className="flex items-center gap-1.5">
           <Users className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          {study.participantCount || 0}/{study.capacity}명
+          {study.participantCount ?? 0}/{study.capacity ?? 0}명
         </span>
         <span className="flex items-center gap-1.5">
           <MessageSquare className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          {study.commentCount || 0}
+          {study.commentCount ?? 0}
         </span>
       </div>
     </Link>
@@ -65,7 +69,7 @@ function StudyCard({ study }: { study: Study }) {
 }
 
 export default function HomePage() {
-  const [studies, setStudies] = useState<Study[]>([]);
+  const [studies, setStudies] = useState<any[]>([]);
   const [activeStatus, setActiveStatus] = useState<StudyStatus>('개설미정');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,8 +81,16 @@ export default function HomePage() {
   useEffect(() => {
     async function fetchStudies() {
       try {
-        const data = await getStudies();
-        setStudies(data);
+        const response: any = await getStudies();
+        
+        // 백엔드 응답 구조가 { success: true, data: [...] } 형태일 경우 대응
+        const listData = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.data)
+          ? response.data
+          : [];
+
+        setStudies(listData);
       } catch (err) {
         setError(getServerErrorMessage(err, '릴레이 스터디를 불러오지 못했어요.'));
       } finally {
@@ -88,7 +100,6 @@ export default function HomePage() {
     fetchStudies();
   }, []);
 
-  // 로그인하지 않았으면 등록 페이지로 넘기지 않고 안내만 띄워요.
   function handleCreateClick(e: React.MouseEvent) {
     if (isLoggedIn) return;
 
@@ -105,12 +116,12 @@ export default function HomePage() {
   }, [activeStatus, searchQuery]);
 
   const keyword = searchQuery.trim().toLowerCase();
-  
-  // STATUS_MAP을 이용해 백엔드의 'PENDING' 값과 프론트의 '개설미정'을 비교하도록 수정했습니다.
-  const visibleStudies = (Array.isArray(studies) ? studies : []).filter(
+
+  // STATUS_MAP[activeStatus] (예: 'PENDING')와 백엔드의 study.status를 비교
+  const visibleStudies = studies.filter(
     (study) =>
       study.status === STATUS_MAP[activeStatus] &&
-      study.title.toLowerCase().includes(keyword)
+      (study.title || '').toLowerCase().includes(keyword)
   );
 
   const totalPages = Math.ceil(visibleStudies.length / STUDIES_PER_PAGE);
