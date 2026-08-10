@@ -154,12 +154,24 @@ export default function StudyDetailPage() {
         const rawData = (detailRes as any)?.data || detailRes || {};
 
         let commentsData: any[] = rawData.comments || rawData.commentList || [];
+        
+        // 🛠️ 백엔드 요구 스펙에 맞게 댓글 조회를 요청하는 URL 경로들을 순차적으로 시도
         if (!commentsData.length) {
           try {
-            const res = await fetch(`https://relayplus.kr:34308/api/comments?lectureId=${studyId}`, {
+            // 1순위: /api/lectures/{lectureId}/comments
+            // 2순위: /api/lectures/lecture/{lectureId}/comments
+            let res = await fetch(`https://relayplus.kr:34308/api/lectures/${studyId}/comments`, {
               method: 'GET',
               headers,
             });
+
+            if (!res.ok) {
+              res = await fetch(`https://relayplus.kr:34308/api/lectures/lecture/${studyId}/comments`, {
+                method: 'GET',
+                headers,
+              });
+            }
+
             if (res.ok) {
               const resJson = await res.json();
               commentsData = Array.isArray(resJson)
