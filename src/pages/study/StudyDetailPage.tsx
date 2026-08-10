@@ -112,8 +112,7 @@ export default function StudyDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const { showToast } = useOutletContext<LayoutContext>();
-  
-  // TypeScript AuthContextValue 에러 우회 처리
+
   const auth = useAuth() as Record<string, any>;
   const isLoggedIn = Boolean(auth?.isLoggedIn);
   const user = auth?.user || auth?.userInfo || auth?.profile || null;
@@ -123,36 +122,36 @@ export default function StudyDetailPage() {
 
     async function fetchDetailAndComments() {
       try {
+        // 1. 공통 Authorization 헤더 준비
+        const token =
+          localStorage.getItem('token') ||
+          localStorage.getItem('accessToken') ||
+          localStorage.getItem('JWT') ||
+          localStorage.getItem('auth');
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+
+        if (token) {
+          const cleanToken = token.replace(/^"(.*)"$/, '$1');
+          headers['Authorization'] = cleanToken.startsWith('Bearer ')
+            ? cleanToken
+            : `Bearer ${cleanToken}`;
+        }
+
+        // 2. 스터디 상세 데이터 요청
         const detailRes = await getStudyDetail(studyId!);
         const rawData = (detailRes as any)?.data || detailRes || {};
 
-        // 1. 댓글 데이터 방어적 파싱
+        // 3. 댓글 데이터 가공 및 별도 fetch
         let commentsData: any[] = rawData.comments || rawData.commentList || [];
-
         if (!commentsData.length) {
           try {
-            const token =
-              localStorage.getItem('token') ||
-              localStorage.getItem('accessToken') ||
-              localStorage.getItem('JWT') ||
-              localStorage.getItem('auth');
-
-            const headers: Record<string, string> = {
-              'Content-Type': 'application/json',
-            };
-
-            if (token) {
-              const cleanToken = token.replace(/^"(.*)"$/, '$1');
-              headers['Authorization'] = cleanToken.startsWith('Bearer ')
-                ? cleanToken
-                : `Bearer ${cleanToken}`;
-            }
-
             const res = await fetch(`https://relayplus.kr:34308/api/comments?lectureId=${studyId}`, {
               method: 'GET',
               headers,
             });
-
             if (res.ok) {
               const resJson = await res.json();
               commentsData = Array.isArray(resJson)
@@ -161,6 +160,40 @@ export default function StudyDetailPage() {
             }
           } catch (e) {
             console.error('댓글 API 요청 실패:', e);
+          }
+        }
+
+        // 4. 네트워크 탭의 myPage API 활용: 내 신청 목록으로 isApplied 교차 검증
+        let isUserApplied = Boolean(
+          rawData.isApplied ??
+            rawData.applied ??
+            rawData.isEnrolled ??
+            rawData.enrolled ??
+            rawData.isAppliedUser ??
+            false
+        );
+
+        if (token) {
+          try {
+            const myPageRes = await fetch('https://relayplus.kr:34308/api/myPage', {
+              method: 'GET',
+              headers,
+            });
+            if (myPageRes.ok) {
+              const myData = await myPageRes.json();
+              const enrollments =
+                myData.enrollments || myData.data?.enrollments || myData.lectures || [];
+              
+              if (Array.isArray(enrollments)) {
+                const found = enrollments.some(
+                  (item: any) =>
+                    String(item.lectureId || item.studyId || item.id) === String(studyId)
+                );
+                if (found) isUserApplied = true;
+              }
+            }
+          } catch (e) {
+            console.error('마이페이지 교차 검증 실패:', e);
           }
         }
 
@@ -173,7 +206,8 @@ export default function StudyDetailPage() {
           rawData.appliedUsers ||
           rawData.applicants ||
           [];
-        const mappedParticipants = Array.isArray(rawParticipants)
+
+        let mappedParticipants = Array.isArray(rawParticipants)
           ? rawParticipants.map((p: any, idx: number) => ({
               id: p.id || p.userId || `p-${idx}`,
               name: p.name || p.userName || p.authorName || '참가자',
@@ -182,32 +216,33 @@ export default function StudyDetailPage() {
             }))
           : [];
 
-        // 신청 여부(isApplied) 감지
-        let isUserApplied = Boolean(
-          rawData.isApplied ??
-            rawData.applied ??
-            rawData.isEnrolled ??
-            rawData.enrolled ??
-            rawData.isAppliedUser ??
-            false
-        );
-
-        // 만약 서버에서 boolean을 안 줬다면, 참가자 목록에서 현재 접속 유저 찾기
-        if (!isUserApplied && user && mappedParticipants.length > 0) {
-          isUserApplied = mappedParticipants.some(
+        // 참가자 목록에 내 계정이 안 보이더라도 내가 신청한 상태면 참가자 목록에 임시 추가
+        if (isUserApplied && user) {
+          const alreadyInList = mappedParticipants.some(
             (p) => String(p.id) === String(user.id) || p.name === user.name
           );
+          if (!alreadyInList) {
+            mappedParticipants.push({
+              id: user.id || 'my-id',
+              name: user.name || '나',
+              department: user.department || '',
+              cohort: user.cohort || (user.generation ? `${user.generation}기` : ''),
+            });
+          }
         }
 
-        // 인원수 감지
-        const actualParticipantCount =
+        // 실제 인원수 보정
+        let actualParticipantCount =
           rawData.applicantCount ??
           rawData.enrollmentCount ??
           rawData.participantCount ??
           rawData.currentParticipants ??
           rawData.appliedCount ??
-          mappedParticipants.length ??
-          0;
+          mappedParticipants.length;
+
+        if (isUserApplied && actualParticipantCount === 0) {
+          actualParticipantCount = mappedParticipants.length || 1;
+        }
 
         const formattedData: StudyDetail = {
           id: rawData.id ?? studyId,
@@ -265,6 +300,12 @@ export default function StudyDetailPage() {
         if (!prev) return prev;
 
         const nextParticipantCount = (prev.participantCount || 0) + 1;
+        const myParticipantObj = {
+          id: user?.id || 'my-id',
+          name: user?.name || '나',
+          department: user?.department || '',
+          cohort: user?.cohort || (user?.generation ? `${user?.generation}기` : ''),
+        };
 
         return {
           ...prev,
@@ -274,14 +315,30 @@ export default function StudyDetailPage() {
               : prev.status,
           isApplied: true,
           participantCount: nextParticipantCount,
+          participants: [...(prev.participants || []), myParticipantObj],
         };
       });
     } catch (err: any) {
       const errorMsg = getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.');
-      
-      // 이미 신청한 강의(409) 에러 발생 시 프론트 상태를 '신청 완료'로 자동 변경
+
+      // 이미 신청된 건(409 Conflict)으로 응답받을 경우 UI를 신청 완료 상태로 강제 전환
       if (errorMsg.includes('이미 신청') || err?.response?.status === 409) {
-        setStudy((prev) => (prev ? { ...prev, isApplied: true } : prev));
+        setStudy((prev) => {
+          if (!prev) return prev;
+          const myParticipantObj = {
+            id: user?.id || 'my-id',
+            name: user?.name || '나',
+            department: user?.department || '',
+            cohort: user?.cohort || (user?.generation ? `${user?.generation}기` : ''),
+          };
+          const exists = prev.participants?.some((p) => p.name === myParticipantObj.name);
+          return {
+            ...prev,
+            isApplied: true,
+            participantCount: prev.participantCount === 0 ? 1 : prev.participantCount,
+            participants: exists ? prev.participants : [...(prev.participants || []), myParticipantObj],
+          };
+        });
         setActionError(null);
       } else {
         setActionError(errorMsg);
@@ -333,7 +390,7 @@ export default function StudyDetailPage() {
   const isDeadlinePassed = isApplicationDeadlinePassed(study.scheduledAt);
   const participantCount = study.participantCount ?? 0;
   const capacity = study.capacity ?? 0;
-  const isFull = participantCount >= capacity;
+  const isFull = participantCount >= capacity && capacity > 0;
   const hiddenParticipantCount = participantCount - VISIBLE_PARTICIPANTS;
   const deadlineText = getApplicationDeadlineText(study.scheduledAt);
 
