@@ -10,7 +10,19 @@ import type { LayoutContext } from '../../components/layout/Layout';
 
 const STUDIES_PER_PAGE = 6;
 
+// 프론트 UI 상태(한글) <-> 서버 API 상태(Enum) 매핑
+const STATUS_MAP: Record<StudyStatus, string> = {
+  '개설미정': 'PENDING',
+  '개설확정': 'CONFIRMED',
+  '종료': 'FINISHED',
+};
+
 function StudyCard({ study }: { study: Study }) {
+  // 백엔드에서 presenters가 배열이 아닌 단일 문자열로 넘어올 경우를 위한 안전장치
+  const presentersText = Array.isArray(study.presenters)
+    ? study.presenters.join(', ')
+    : study.presenters || '';
+
   return (
     <Link
       to={`/lecture/${study.id}`}
@@ -18,7 +30,7 @@ function StudyCard({ study }: { study: Study }) {
     >
       <div className="flex items-center justify-between">
         <span
-          className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_BADGE_STYLES[study.status]}`}
+          className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_BADGE_STYLES[study.status] || 'bg-gray-100 text-gray-600'}`}
         >
           {study.status}
         </span>
@@ -30,7 +42,7 @@ function StudyCard({ study }: { study: Study }) {
       <div className="mt-5 space-y-3 text-sm text-gray-500">
         <p className="flex items-center gap-2">
           <User className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          {study.presenters.join(', ')}
+          {presentersText}
         </p>
         <p className="flex items-center gap-2">
           <Calendar className="w-4 h-4 shrink-0" strokeWidth={1.8} />
@@ -41,11 +53,11 @@ function StudyCard({ study }: { study: Study }) {
       <div className="flex items-center justify-between border-t border-gray-100 mt-8 pt-4 text-sm text-gray-400">
         <span className="flex items-center gap-1.5">
           <Users className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          {study.participantCount}/{study.capacity}명
+          {study.participantCount || 0}/{study.capacity}명
         </span>
         <span className="flex items-center gap-1.5">
           <MessageSquare className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          {study.commentCount}
+          {study.commentCount || 0}
         </span>
       </div>
     </Link>
@@ -93,11 +105,14 @@ export default function HomePage() {
   }, [activeStatus, searchQuery]);
 
   const keyword = searchQuery.trim().toLowerCase();
+  
+  // STATUS_MAP을 이용해 백엔드의 'PENDING' 값과 프론트의 '개설미정'을 비교하도록 수정했습니다.
   const visibleStudies = (Array.isArray(studies) ? studies : []).filter(
     (study) =>
-      study.status === activeStatus &&
+      study.status === STATUS_MAP[activeStatus] &&
       study.title.toLowerCase().includes(keyword)
   );
+
   const totalPages = Math.ceil(visibleStudies.length / STUDIES_PER_PAGE);
   const pagedStudies = visibleStudies.slice(
     (currentPage - 1) * STUDIES_PER_PAGE,
