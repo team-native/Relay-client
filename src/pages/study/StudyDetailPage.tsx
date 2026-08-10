@@ -122,24 +122,43 @@ export default function StudyDetailPage() {
         const detailRes = await getStudyDetail(studyId!);
         const rawData = (detailRes as any)?.data || detailRes || {};
 
-        // 댓글 데이터 방어적 파싱
+        // 1. 상세 API 데이터에 댓글이 포함되어 있는지 확인
         let commentsData: any[] = rawData.comments || rawData.commentList || [];
 
-        // 상세 응답에 댓글이 없을 경우 추가 endpoint 조회
+        // 2. 상세 응답에 댓글이 없거나 비어있을 경우 별도 댓글 API 호출 (인증헤더 포함)
         if (!commentsData.length) {
           try {
-            const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+            // 로컬스토리지 토큰 자동 감지 (JWT 토큰)
+            const token =
+              localStorage.getItem('token') ||
+              localStorage.getItem('accessToken') ||
+              localStorage.getItem('JWT') ||
+              localStorage.getItem('auth');
+
+            const headers: Record<string, string> = {
+              'Content-Type': 'application/json',
+            };
+
+            if (token) {
+              const cleanToken = token.replace(/^"(.*)"$/, '$1'); // 문자열에 쌍따옴표 들어간 경우 제거
+              headers['Authorization'] = cleanToken.startsWith('Bearer ')
+                ? cleanToken
+                : `Bearer ${cleanToken}`;
+            }
+
             const res = await fetch(`https://relayplus.kr:34308/api/comments?lectureId=${studyId}`, {
-              headers: {
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              },
+              method: 'GET',
+              headers,
             });
+
             if (res.ok) {
               const resJson = await res.json();
-              commentsData = Array.isArray(resJson) ? resJson : resJson.data || resJson.comments || [];
+              commentsData = Array.isArray(resJson)
+                ? resJson
+                : resJson.data || resJson.comments || [];
             }
           } catch (e) {
-            // fetch 실패 시 기본 empty 사용
+            console.error('댓글 API 요청 실패:', e);
           }
         }
 
@@ -147,7 +166,11 @@ export default function StudyDetailPage() {
 
         // 참가자 목록 파싱
         const rawParticipants =
-          rawData.participants || rawData.enrollments || rawData.appliedUsers || rawData.applicants || [];
+          rawData.participants ||
+          rawData.enrollments ||
+          rawData.appliedUsers ||
+          rawData.applicants ||
+          [];
         const mappedParticipants = Array.isArray(rawParticipants)
           ? rawParticipants.map((p: any, idx: number) => ({
               id: p.id || p.userId || `p-${idx}`,
@@ -157,7 +180,7 @@ export default function StudyDetailPage() {
             }))
           : [];
 
-        // 인원수 필드명 감지
+        // 인원수 필드명 방어
         const actualParticipantCount =
           rawData.applicantCount ??
           rawData.enrollmentCount ??
@@ -167,7 +190,7 @@ export default function StudyDetailPage() {
           mappedParticipants.length ??
           0;
 
-        // 신청 여부 감지
+        // 이미 신청했는지 여부 방어
         const isUserApplied = Boolean(
           rawData.isApplied ??
             rawData.applied ??
