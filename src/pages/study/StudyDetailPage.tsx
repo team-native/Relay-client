@@ -422,8 +422,7 @@ export default function StudyDetailPage() {
     ? study.presenters.join(', ')
     : '연사 정보 없음';
 
-  // 작성자 또는 어드민 여부 확인
-  const isAuthorOrAdmin = isAdmin || study.author?.name === userInfo.name;
+  const isAuthorOrAdmin = isAdmin
 
   return (
     <div>
@@ -436,7 +435,6 @@ export default function StudyDetailPage() {
           홈으로
         </Link>
 
-        {/* 🛠️ 작성자 또는 어드민일 때 강의 수정/삭제 버튼 노출 */}
         {isAuthorOrAdmin && (
           <div className="flex gap-2">
             <button
