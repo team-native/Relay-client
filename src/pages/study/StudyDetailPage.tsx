@@ -60,10 +60,9 @@ function getRoleFromToken(): string | null {
   }
 }
 
-// 🛠️ JWT 토큰 또는 LocalStorage에서 로그인한 실제 사용자 이름 파싱 (경고 해결 및 파싱 강화)
+// 🛠️ JWT 토큰 또는 LocalStorage에서 로그인한 실제 사용자 이름 파싱
 function getNameFromToken(): string {
   try {
-    // 1. LocalStorage user 객체 확인
     const localUserRaw = localStorage.getItem('user');
     if (localUserRaw) {
       const parsedUser = JSON.parse(localUserRaw);
@@ -71,7 +70,6 @@ function getNameFromToken(): string {
       if (name && name !== '양지우') return name;
     }
 
-    // 2. JWT 토큰 파싱
     const token =
       localStorage.getItem('relay_access_token') ||
       localStorage.getItem('token') ||
@@ -234,7 +232,7 @@ export default function StudyDetailPage() {
 
   const isAdmin = String(role).toUpperCase().includes('ADMIN');
 
-  // 상세정보 불러오기
+  // 🛠️ 상세정보 불러오는 핵심 함수 (myPage 500 에러 대응 완벽 적용)
   const fetchDetailAndComments = useCallback(async () => {
     if (!studyId) return;
 
@@ -295,12 +293,14 @@ export default function StudyDetailPage() {
           false
       );
 
+      // myPage 500 에러가 터져도 전체 프로세스가 안 깨지도록 try-catch 보완
       if (rawToken) {
         try {
           const myPageRes = await fetch('https://relayplus.kr:34308/api/myPage', {
             method: 'GET',
             headers,
           });
+
           if (myPageRes.ok) {
             const myData = await myPageRes.json();
             const enrolledLectures = myData.enrolledLectures || myData.enrollments || [];
@@ -312,7 +312,7 @@ export default function StudyDetailPage() {
             }
           }
         } catch (e) {
-          console.error('마이페이지 정보 로딩 실패:', e);
+          console.error('마이페이지 정보 로딩 중 오류 발생:', e);
         }
       }
 
@@ -324,8 +324,7 @@ export default function StudyDetailPage() {
         rawData.applicants ||
         [];
 
-      // 🛠️ 여기서 getNameFromToken() 함수를 호출하여 백엔드 더미 데이터를 유연하게 처리
-      const mappedParticipants = Array.isArray(rawParticipants)
+      let mappedParticipants = Array.isArray(rawParticipants)
         ? rawParticipants.map((p: any, idx: number) => {
             const pUser = p.user || p.userInfo || p.member || p;
             const nameCandidate =
@@ -337,7 +336,6 @@ export default function StudyDetailPage() {
               p.userName ||
               p.authorName;
 
-            // 이름이 없거나 더미인 경우 토큰에서 추출한 실제 계정 이름 활용
             const actualName =
               nameCandidate && nameCandidate !== '양지우'
                 ? nameCandidate
@@ -359,46 +357,63 @@ export default function StudyDetailPage() {
           index === self.findIndex((t) => (t.id && t.id === p.id) || t.name === p.name)
       );
 
-      const actualParticipantCount =
-        rawData.applicantCount ??
-        rawData.enrollmentCount ??
-        rawData.participantCount ??
-        rawData.currentParticipants ??
-        uniqueParticipants.length;
+      setStudy((prevStudy) => {
+        // 이미 신청한 적이 있다면 500 에러 응답 때문에 취소 처리되지 않도록 방어
+        const finalIsApplied = prevStudy?.isApplied ? true : isUserApplied;
 
-      const formattedData: StudyDetail = {
-        id: rawData.id ?? studyId,
-        title: rawData.title || '제목 없음',
-        description: rawData.description || '내용이 없습니다.',
-        status: SERVER_TO_UI_STATUS[rawData.status] || rawData.status || '개설미정',
-        scheduledAt: rawData.scheduledAt,
-        createdAt: rawData.createdAt,
-        isApplied: isUserApplied,
-        capacity: rawData.capacity ?? rawData.maxParticipants ?? 0,
-        participantCount: actualParticipantCount,
-        commentCount: rawData.commentCount ?? commentsData.length ?? 0,
-        author: rawData.author || {
-          name: singlePresenter || '익명',
-          department: '',
-          cohort: '',
-        },
-        participants: uniqueParticipants,
-        comments: commentsData,
-        presenters:
-          rawData.presenters && rawData.presenters.length > 0
-            ? rawData.presenters
-            : singlePresenter
-              ? [singlePresenter]
-              : ['연사 정보 없음'],
-      };
+        let finalParticipants = uniqueParticipants;
+        // 신청 완료된 상태인데 백엔드가 참가자를 안 보내준 경우 내 정보 유지
+        if (finalIsApplied && finalParticipants.length === 0) {
+          const currentUserName = user?.name || user?.userName || getNameFromToken();
+          finalParticipants = [
+            {
+              id: 'my-temp-id',
+              name: currentUserName,
+              department: user?.department || '',
+              cohort: user?.generation ? `${user.generation}기` : '',
+            },
+          ];
+        }
 
-      setStudy(formattedData);
+        const actualParticipantCount =
+          rawData.applicantCount ??
+          rawData.enrollmentCount ??
+          rawData.participantCount ??
+          rawData.currentParticipants ??
+          finalParticipants.length;
+
+        return {
+          id: rawData.id ?? studyId,
+          title: rawData.title || '제목 없음',
+          description: rawData.description || '내용이 없습니다.',
+          status: SERVER_TO_UI_STATUS[rawData.status] || rawData.status || '개설미정',
+          scheduledAt: rawData.scheduledAt,
+          createdAt: rawData.createdAt,
+          isApplied: finalIsApplied,
+          capacity: rawData.capacity ?? rawData.maxParticipants ?? 0,
+          participantCount: actualParticipantCount,
+          commentCount: rawData.commentCount ?? commentsData.length ?? 0,
+          author: rawData.author || {
+            name: singlePresenter || '익명',
+            department: '',
+            cohort: '',
+          },
+          participants: finalParticipants,
+          comments: commentsData,
+          presenters:
+            rawData.presenters && rawData.presenters.length > 0
+              ? rawData.presenters
+              : singlePresenter
+                ? [singlePresenter]
+                : ['연사 정보 없음'],
+        };
+      });
     } catch (err) {
       setError(getServerErrorMessage(err, '릴레이 스터디를 불러오지 못했어요.'));
     } finally {
       setIsLoading(false);
     }
-  }, [studyId]);
+  }, [studyId, user]);
 
   useEffect(() => {
     fetchDetailAndComments();
@@ -415,6 +430,7 @@ export default function StudyDetailPage() {
     }
   }
 
+  // 🛠️ 참가 신청 핸들러
   async function handleApply() {
     if (!studyId || !study) return;
     if (!isLoggedIn) {
@@ -428,11 +444,11 @@ export default function StudyDetailPage() {
       await applyStudy(studyId);
       showToast('참가 신청이 완료되었습니다.');
 
-      // 🛠️ 여기서도 getNameFromToken()을 호출하여 내 이름 반영
       const currentUserName = user?.name || user?.userName || getNameFromToken();
       const currentUserDept = user?.department || '';
       const currentUserGen = user?.generation || user?.cohort || '';
 
+      // UI 먼저 업데이트 (클라이언트 화면에 먼저 찍어줌)
       setStudy((prev) => {
         if (!prev) return prev;
         const exists = prev.participants?.some((p) => p.name === currentUserName);
@@ -460,6 +476,7 @@ export default function StudyDetailPage() {
         };
       });
 
+      // 백엔드 재조회 실행
       await fetchDetailAndComments();
     } catch (err: any) {
       const errorMsg = getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.');
