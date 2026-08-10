@@ -17,11 +17,29 @@ const STATUS_MAP: Record<StudyStatus, string> = {
   '종료': 'FINISHED',
 };
 
-function StudyCard({ study }: { study: any }) {
-  // presenters가 배열이면 join, 백엔드에서 presenter(문자열)로 오면 해당 값 표시
+// 백엔드 API 응답 객체 타입 정의 (any 제거)
+interface APIStudyResponse {
+  id: number;
+  title: string;
+  presenter?: string;
+  presenters?: string[];
+  scheduledAt?: string;
+  capacity?: number;
+  status: string;
+  createdAt?: string;
+  participantCount?: number;
+  commentCount?: number;
+}
+
+interface StudyCardProps {
+  study: APIStudyResponse;
+}
+
+function StudyCard({ study }: StudyCardProps) {
+  // presenters가 배열이면 join, presenter(문자열)로 오면 해당 값 표시
   const presenterText = Array.isArray(study.presenters)
     ? study.presenters.join(', ')
-    : study.presenter || study.presenters || '발표자 없음';
+    : study.presenter || '발표자 없음';
 
   return (
     <Link
@@ -69,7 +87,7 @@ function StudyCard({ study }: { study: any }) {
 }
 
 export default function HomePage() {
-  const [studies, setStudies] = useState<any[]>([]);
+  const [studies, setStudies] = useState<APIStudyResponse[]>([]);
   const [activeStatus, setActiveStatus] = useState<StudyStatus>('개설미정');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,14 +99,22 @@ export default function HomePage() {
   useEffect(() => {
     async function fetchStudies() {
       try {
-        const response: any = await getStudies();
+        const response = await getStudies();
         
-        // 백엔드 응답 구조가 { success: true, data: [...] } 형태일 경우 대응
-        const listData = Array.isArray(response)
-          ? response
-          : Array.isArray(response?.data)
-          ? response.data
-          : [];
+        // 백엔드 응답이 배열인지, 객체 안에 data 배열이 들어있는 구조인지 안전하게 판단
+        const rawData = response as unknown;
+        let listData: APIStudyResponse[] = [];
+
+        if (Array.isArray(rawData)) {
+          listData = rawData as APIStudyResponse[];
+        } else if (
+          typeof rawData === 'object' &&
+          rawData !== null &&
+          'data' in rawData &&
+          Array.isArray((rawData as { data: unknown }).data)
+        ) {
+          listData = (rawData as { data: APIStudyResponse[] }).data;
+        }
 
         setStudies(listData);
       } catch (err) {
@@ -117,7 +143,6 @@ export default function HomePage() {
 
   const keyword = searchQuery.trim().toLowerCase();
 
-  // STATUS_MAP[activeStatus] (예: 'PENDING')와 백엔드의 study.status를 비교
   const visibleStudies = studies.filter(
     (study) =>
       study.status === STATUS_MAP[activeStatus] &&
