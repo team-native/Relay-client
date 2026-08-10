@@ -12,6 +12,7 @@ const VISIBLE_PARTICIPANTS = 4;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const CONFIRMED_PARTICIPANT_COUNT = 10;
 
+// 백엔드 Enum -> UI 표시용 한글 변환
 const SERVER_TO_UI_STATUS: Record<string, StudyStatus> = {
   PENDING: '개설미정',
   CONFIRMED: '개설확정',
@@ -67,18 +68,15 @@ function isApplicationDeadlinePassed(scheduledAt?: string) {
   return deadline ? deadline.getTime() <= Date.now() : false;
 }
 
+// 🌟 백엔드 댓글 응답 객체 구조에 맞춰 필드 호환성 추가
 function CommentItem({ comment }: { comment: any }) {
-  const authorName =
-    comment.authorName || comment.author?.name || comment.userName || comment.user?.name || '익명';
-  const department =
-    comment.authorDepartment || comment.author?.department || comment.department || '';
+  const authorName = comment.authorName || comment.author || '익명';
+  const department = comment.authorDepartment || comment.department || '';
   const cohort = comment.authorGeneration
     ? `${comment.authorGeneration}기`
-    : comment.author?.cohort
-      ? `${comment.author.cohort}`
-      : comment.cohort
-        ? `${comment.cohort}`
-        : '';
+    : comment.cohort
+      ? `${comment.cohort}`
+      : '';
   const createdAt = comment.timeAgo || comment.createdAt || '';
 
   return (
@@ -112,134 +110,19 @@ export default function StudyDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const { showToast } = useOutletContext<LayoutContext>();
-
-  const auth = useAuth() as Record<string, any>;
-  const isLoggedIn = Boolean(auth?.isLoggedIn);
-  const user = auth?.user || auth?.userInfo || auth?.profile || null;
-
-  // 유저 정보 유효 객체 파싱 (이름, 학과, 기수)
-  const myInfo = {
-    id: user?.id || 'my-id',
-    name: user?.name || user?.userName || '사용자',
-    department: user?.department || user?.dept || '',
-    cohort: user?.cohort || (user?.generation ? `${user.generation}기` : ''),
-  };
+  const { isLoggedIn } = useAuth();
 
   useEffect(() => {
     if (!studyId) return;
 
-    async function fetchDetailAndComments() {
+    async function fetchDetail() {
       try {
-        const token =
-          localStorage.getItem('token') ||
-          localStorage.getItem('accessToken') ||
-          localStorage.getItem('JWT') ||
-          localStorage.getItem('auth');
-
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
-
-        if (token) {
-          const cleanToken = token.replace(/^"(.*)"$/, '$1');
-          headers['Authorization'] = cleanToken.startsWith('Bearer ')
-            ? cleanToken
-            : `Bearer ${cleanToken}`;
-        }
-
-        const detailRes = await getStudyDetail(studyId!);
-        const rawData = (detailRes as any)?.data || detailRes || {};
-
-        let commentsData: any[] = rawData.comments || rawData.commentList || [];
-        if (!commentsData.length) {
-          try {
-            const res = await fetch(`https://relayplus.kr:34308/api/comments?lectureId=${studyId}`, {
-              method: 'GET',
-              headers,
-            });
-            if (res.ok) {
-              const resJson = await res.json();
-              commentsData = Array.isArray(resJson)
-                ? resJson
-                : resJson.data || resJson.comments || [];
-            }
-          } catch (e) {
-            console.error('댓글 API 요청 실패:', e);
-          }
-        }
-
-        let isUserApplied = Boolean(
-          rawData.isApplied ??
-            rawData.applied ??
-            rawData.isEnrolled ??
-            rawData.enrolled ??
-            rawData.isAppliedUser ??
-            false
-        );
-
-        if (token) {
-          try {
-            const myPageRes = await fetch('https://relayplus.kr:34308/api/myPage', {
-              method: 'GET',
-              headers,
-            });
-            if (myPageRes.ok) {
-              const myData = await myPageRes.json();
-              const enrollments =
-                myData.enrollments || myData.data?.enrollments || myData.lectures || [];
-
-              if (Array.isArray(enrollments)) {
-                const found = enrollments.some(
-                  (item: any) =>
-                    String(item.lectureId || item.studyId || item.id) === String(studyId)
-                );
-                if (found) isUserApplied = true;
-              }
-            }
-          } catch (e) {
-            console.error('마이페이지 교차 검증 실패:', e);
-          }
-        }
+        const response = await getStudyDetail(studyId!);
+        
+        const rawResponse = response as any;
+        const rawData = rawResponse?.data || rawResponse || {};
 
         const singlePresenter = rawData.presenter;
-
-        const rawParticipants =
-          rawData.participants ||
-          rawData.enrollments ||
-          rawData.appliedUsers ||
-          rawData.applicants ||
-          [];
-
-        let mappedParticipants = Array.isArray(rawParticipants)
-          ? rawParticipants.map((p: any, idx: number) => ({
-              id: p.id || p.userId || `p-${idx}`,
-              name: p.name || p.userName || p.authorName || '참가자',
-              department: p.department || p.authorDepartment || '',
-              cohort: p.cohort || (p.authorGeneration ? `${p.authorGeneration}기` : ''),
-            }))
-          : [];
-
-        // 내가 신청된 상태이면 실제 로그인 유저 데이터로 명단 삽입
-        if (isUserApplied) {
-          const alreadyInList = mappedParticipants.some(
-            (p) => String(p.id) === String(myInfo.id) || p.name === myInfo.name
-          );
-          if (!alreadyInList) {
-            mappedParticipants.push(myInfo);
-          }
-        }
-
-        let actualParticipantCount =
-          rawData.applicantCount ??
-          rawData.enrollmentCount ??
-          rawData.participantCount ??
-          rawData.currentParticipants ??
-          rawData.appliedCount ??
-          mappedParticipants.length;
-
-        if (isUserApplied && actualParticipantCount === 0) {
-          actualParticipantCount = mappedParticipants.length || 1;
-        }
 
         const formattedData: StudyDetail = {
           id: rawData.id ?? studyId,
@@ -248,21 +131,17 @@ export default function StudyDetailPage() {
           status: SERVER_TO_UI_STATUS[rawData.status] || rawData.status || '개설미정',
           scheduledAt: rawData.scheduledAt,
           createdAt: rawData.createdAt,
-
-          isApplied: isUserApplied,
-
-          capacity: rawData.capacity ?? rawData.maxParticipants ?? 0,
-          participantCount: actualParticipantCount,
-          commentCount: rawData.commentCount ?? commentsData.length ?? 0,
-
+          isApplied: rawData.isApplied ?? false,
+          capacity: rawData.capacity ?? 0,
+          participantCount: rawData.participantCount ?? rawData.participants?.length ?? 0,
+          commentCount: rawData.commentCount ?? rawData.comments?.length ?? 0,
           author: rawData.author || {
             name: singlePresenter || '익명',
             department: '',
             cohort: '',
           },
-          participants: mappedParticipants,
-          comments: commentsData,
-
+          participants: rawData.participants || [],
+          comments: rawData.comments || [],
           presenters:
             rawData.presenters && rawData.presenters.length > 0
               ? rawData.presenters
@@ -278,9 +157,8 @@ export default function StudyDetailPage() {
         setIsLoading(false);
       }
     }
-
-    fetchDetailAndComments();
-  }, [studyId, user]);
+    fetchDetail();
+  }, [studyId]);
 
   async function handleApply() {
     if (!studyId || !study) return;
@@ -306,27 +184,19 @@ export default function StudyDetailPage() {
               : prev.status,
           isApplied: true,
           participantCount: nextParticipantCount,
-          participants: [...(prev.participants || []), myInfo],
+          participants: [
+            {
+              id: `me-${Date.now()}`,
+              name: '양지우',
+              department: '스마트IoT과',
+              cohort: '10기',
+            },
+            ...(prev.participants || []),
+          ],
         };
       });
-    } catch (err: any) {
-      const errorMsg = getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.');
-
-      if (errorMsg.includes('이미 신청') || err?.response?.status === 409) {
-        setStudy((prev) => {
-          if (!prev) return prev;
-          const exists = prev.participants?.some((p) => p.name === myInfo.name);
-          return {
-            ...prev,
-            isApplied: true,
-            participantCount: prev.participantCount === 0 ? 1 : prev.participantCount,
-            participants: exists ? prev.participants : [...(prev.participants || []), myInfo],
-          };
-        });
-        setActionError(null);
-      } else {
-        setActionError(errorMsg);
-      }
+    } catch (err) {
+      setActionError(getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.'));
     } finally {
       setIsApplying(false);
     }
@@ -344,9 +214,9 @@ export default function StudyDetailPage() {
     setActionError(null);
     try {
       const response = await createStudyComment(studyId, commentDraft.trim());
-
-      const responseObj = response as any;
-      const created = responseObj?.data || responseObj;
+      
+      // 🌟 백엔드 응답 구조 ({ message: "...", data: { ... } }) 대응
+      const created = (response as any)?.data || response;
 
       setStudy((prev) =>
         prev
@@ -374,7 +244,7 @@ export default function StudyDetailPage() {
   const isDeadlinePassed = isApplicationDeadlinePassed(study.scheduledAt);
   const participantCount = study.participantCount ?? 0;
   const capacity = study.capacity ?? 0;
-  const isFull = participantCount >= capacity && capacity > 0;
+  const isFull = participantCount >= capacity;
   const hiddenParticipantCount = participantCount - VISIBLE_PARTICIPANTS;
   const deadlineText = getApplicationDeadlineText(study.scheduledAt);
 
@@ -456,7 +326,7 @@ export default function StudyDetailPage() {
 
           <hr className="my-6 border-gray-200" />
 
-          <h2 className="text-sm font-semibold">댓글 {study.comments?.length ?? 0}</h2>
+          <h2 className="text-sm font-semibold">댓글 {study.commentCount ?? 0}</h2>
           <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 mt-4">
             <input
               value={commentDraft}
