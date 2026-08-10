@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link, useOutletContext, useParams, useNavigate } from 'react-router-dom';
 import { Calendar, ChevronLeft, User, Users } from 'lucide-react';
 import { applyStudy, createStudyComment, getStudyDetail, deleteStudy } from '../../api/studyApi';
@@ -10,7 +10,6 @@ import type { LayoutContext } from '../../components/layout/Layout';
 
 const VISIBLE_PARTICIPANTS = 4;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
-const CONFIRMED_PARTICIPANT_COUNT = 10;
 
 const SERVER_TO_UI_STATUS: Record<string, StudyStatus> = {
   PENDING: '개설미정',
@@ -18,7 +17,7 @@ const SERVER_TO_UI_STATUS: Record<string, StudyStatus> = {
   FINISHED: '종료',
 };
 
-// 🛠️ 학과 영문 코드를 한글 명칭으로 변환하는 매핑 및 함수
+// 🛠️ 학과 영문 코드를 한글 명칭으로 변환 매핑
 const DEPARTMENT_LABEL_MAP: Record<string, string> = {
   SW_DEVELOPMENT: '소프트웨어개발과',
   SMART_IOT: '스마트IoT과',
@@ -30,7 +29,7 @@ function getDepartmentLabel(code: string | undefined | null): string {
   return DEPARTMENT_LABEL_MAP[code] || code;
 }
 
-// 🛠️ JWT 토큰을 파싱하여 payload 내부의 role을 꺼내는 함수 (NoticeListPage와 동일)
+// 🛠️ JWT 토큰에서 Role 파싱
 function getRoleFromToken(): string | null {
   try {
     const token =
@@ -57,8 +56,47 @@ function getRoleFromToken(): string | null {
     const parsed = JSON.parse(jsonPayload);
     return parsed?.role || parsed?.auth || parsed?.roles?.[0] || parsed?.userRole || null;
   } catch (e) {
-    console.error('토큰 파싱 실패:', e);
     return null;
+  }
+}
+
+// 🛠️ JWT 토큰 또는 LocalStorage에서 로그인한 실제 사용자 이름 파싱 (경고 해결 및 파싱 강화)
+function getNameFromToken(): string {
+  try {
+    // 1. LocalStorage user 객체 확인
+    const localUserRaw = localStorage.getItem('user');
+    if (localUserRaw) {
+      const parsedUser = JSON.parse(localUserRaw);
+      const name = parsedUser?.name || parsedUser?.userName || parsedUser?.nickname;
+      if (name && name !== '양지우') return name;
+    }
+
+    // 2. JWT 토큰 파싱
+    const token =
+      localStorage.getItem('relay_access_token') ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('accessToken') ||
+      localStorage.getItem('JWT') ||
+      localStorage.getItem('auth');
+
+    if (!token) return '참가자';
+
+    const cleanToken = token.replace(/^"(.*)"$/, '$1').replace(/^Bearer\s+/i, '');
+    const base64Url = cleanToken.split('.')[1];
+    if (!base64Url) return '참가자';
+
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+
+    const parsed = JSON.parse(jsonPayload);
+    return parsed?.name || parsed?.userName || parsed?.nickname || parsed?.sub || '참가자';
+  } catch (e) {
+    return '참가자';
   }
 }
 
@@ -159,16 +197,9 @@ export default function StudyDetailPage() {
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [userInfo, setUserInfo] = useState<any>({
-    id: 1,
-    name: '양지우',
-    department: 'SMART_IOT',
-    cohort: '10기',
-  });
 
   const { showToast } = useOutletContext<LayoutContext>();
 
-  // 🛠️ Auth Context + LocalStorage + JWT Token 디코딩으로 어드민 판단 (NoticeListPage 동일 방식)
   const auth = useAuth() as Record<string, any>;
   const isLoggedIn = Boolean(
     auth?.isLoggedIn ||
@@ -188,7 +219,7 @@ export default function StudyDetailPage() {
       localUserRole = parsed?.role || parsed?.userRole || '';
     }
   } catch (e) {
-    // ignore json error
+    // ignore
   }
 
   const role =
@@ -201,191 +232,177 @@ export default function StudyDetailPage() {
     tokenRole ||
     '';
 
-  // ROLE_ADMIN, ADMIN, 소문자 admin 모두 처리 가능하도록 includes 활용
   const isAdmin = String(role).toUpperCase().includes('ADMIN');
 
-  useEffect(() => {
+  // 상세정보 불러오기
+  const fetchDetailAndComments = useCallback(async () => {
     if (!studyId) return;
 
-    async function fetchDetailAndComments() {
-      try {
-        // 🛠️ 토큰 파싱 보강 (401 에러 방지)
-        const rawToken =
-          localStorage.getItem('relay_access_token') ||
-          localStorage.getItem('token') ||
-          localStorage.getItem('accessToken') ||
-          localStorage.getItem('JWT') ||
-          localStorage.getItem('auth');
+    try {
+      const rawToken =
+        localStorage.getItem('relay_access_token') ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        localStorage.getItem('JWT') ||
+        localStorage.getItem('auth');
 
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
 
-        if (rawToken) {
-          const cleanToken = rawToken.replace(/^"(.*)"$/, '$1');
-          headers['Authorization'] = cleanToken.startsWith('Bearer ')
-            ? cleanToken
-            : `Bearer ${cleanToken}`;
-        }
-
-        const detailRes = await getStudyDetail(studyId!);
-        const rawData = (detailRes as any)?.data || detailRes || {};
-
-        let commentsData: any[] = rawData.comments || rawData.commentList || [];
-
-        // 🛠️ 댓글 조회 시 Authorization 헤더 전달
-        if (!commentsData.length) {
-          try {
-            let res = await fetch(`https://relayplus.kr:34308/api/lectures/${studyId}/comments`, {
-              method: 'GET',
-              headers,
-            });
-
-            if (!res.ok) {
-              res = await fetch(`https://relayplus.kr:34308/api/lectures/lecture/${studyId}/comments`, {
-                method: 'GET',
-                headers,
-              });
-            }
-
-            if (res.ok) {
-              const resJson = await res.json();
-              commentsData = Array.isArray(resJson)
-                ? resJson
-                : resJson.data || resJson.comments || [];
-            }
-          } catch (e) {
-            console.error('댓글 API 요청 실패:', e);
-          }
-        }
-
-        let isUserApplied = Boolean(
-          rawData.isApplied ??
-            rawData.applied ??
-            rawData.isEnrolled ??
-            rawData.enrolled ??
-            false
-        );
-
-        let currentUser = {
-          id: 1,
-          name: '양지우',
-          department: 'SMART_IOT',
-          cohort: '10기',
-        };
-
-        if (rawToken) {
-          try {
-            const myPageRes = await fetch('https://relayplus.kr:34308/api/myPage', {
-              method: 'GET',
-              headers,
-            });
-            if (myPageRes.ok) {
-              const myData = await myPageRes.json();
-              const name = myData.name || '양지우';
-              const department = myData.department || 'SMART_IOT';
-              const gen = myData.generation;
-              const cohort = gen ? `${gen}기` : '';
-
-              currentUser = {
-                id: myData.userId || myData.id || 1,
-                name,
-                department,
-                cohort,
-              };
-
-              const enrolledLectures = myData.enrolledLectures || myData.enrollments || [];
-              if (Array.isArray(enrolledLectures)) {
-                const isFound = enrolledLectures.some(
-                  (lecture: any) => String(lecture.id || lecture.lectureId) === String(studyId)
-                );
-                if (isFound) isUserApplied = true;
-              }
-            }
-          } catch (e) {
-            console.error('마이페이지 정보 로딩 실패:', e);
-          }
-        }
-
-        setUserInfo(currentUser);
-
-        const singlePresenter = rawData.presenter;
-        const rawParticipants =
-          rawData.participants ||
-          rawData.enrollments ||
-          rawData.appliedUsers ||
-          rawData.applicants ||
-          [];
-
-        let mappedParticipants = Array.isArray(rawParticipants)
-          ? rawParticipants.map((p: any, idx: number) => {
-              const gen = p.generation || p.authorGeneration || p.cohort;
-              return {
-                id: p.id || p.userId || `p-${idx}`,
-                name: p.name || p.userName || p.authorName || '참가자',
-                department: p.department || p.authorDepartment || '',
-                cohort: gen ? (String(gen).endsWith('기') ? String(gen) : `${gen}기`) : '',
-              };
-            })
-          : [];
-
-        if (isUserApplied) {
-          const exists = mappedParticipants.some(
-            (p) => String(p.id) === String(currentUser.id) || p.name === currentUser.name
-          );
-
-          if (!exists) {
-            mappedParticipants.push(currentUser);
-          }
-        }
-
-        let actualParticipantCount =
-          rawData.applicantCount ??
-          rawData.enrollmentCount ??
-          rawData.participantCount ??
-          rawData.currentParticipants ??
-          mappedParticipants.length;
-
-        if (isUserApplied && actualParticipantCount === 0) {
-          actualParticipantCount = mappedParticipants.length || 1;
-        }
-
-        const formattedData: StudyDetail = {
-          id: rawData.id ?? studyId,
-          title: rawData.title || '제목 없음',
-          description: rawData.description || '내용이 없습니다.',
-          status: SERVER_TO_UI_STATUS[rawData.status] || rawData.status || '개설미정',
-          scheduledAt: rawData.scheduledAt,
-          createdAt: rawData.createdAt,
-          isApplied: isUserApplied,
-          capacity: rawData.capacity ?? rawData.maxParticipants ?? 0,
-          participantCount: actualParticipantCount,
-          commentCount: rawData.commentCount ?? commentsData.length ?? 0,
-          author: rawData.author || {
-            name: singlePresenter || '익명',
-            department: '',
-            cohort: '',
-          },
-          participants: mappedParticipants,
-          comments: commentsData,
-          presenters:
-            rawData.presenters && rawData.presenters.length > 0
-              ? rawData.presenters
-              : singlePresenter
-                ? [singlePresenter]
-                : ['연사 정보 없음'],
-        };
-
-        setStudy(formattedData);
-      } catch (err) {
-        setError(getServerErrorMessage(err, '릴레이 스터디를 불러오지 못했어요.'));
-      } finally {
-        setIsLoading(false);
+      if (rawToken) {
+        const cleanToken = rawToken.replace(/^"(.*)"$/, '$1');
+        headers['Authorization'] = cleanToken.startsWith('Bearer ')
+          ? cleanToken
+          : `Bearer ${cleanToken}`;
       }
-    }
 
-    fetchDetailAndComments();
+      const detailRes = await getStudyDetail(studyId);
+      const rawData = (detailRes as any)?.data || detailRes || {};
+
+      let commentsData: any[] = rawData.comments || rawData.commentList || [];
+
+      if (!commentsData.length) {
+        try {
+          let res = await fetch(`https://relayplus.kr:34308/api/lectures/${studyId}/comments`, {
+            method: 'GET',
+            headers,
+          });
+
+          if (!res.ok) {
+            res = await fetch(`https://relayplus.kr:34308/api/lectures/lecture/${studyId}/comments`, {
+              method: 'GET',
+              headers,
+            });
+          }
+
+          if (res.ok) {
+            const resJson = await res.json();
+            commentsData = Array.isArray(resJson)
+              ? resJson
+              : resJson.data || resJson.comments || [];
+          }
+        } catch (e) {
+          console.error('댓글 API 요청 실패:', e);
+        }
+      }
+
+      let isUserApplied = Boolean(
+        rawData.isApplied ??
+          rawData.applied ??
+          rawData.isEnrolled ??
+          rawData.enrolled ??
+          false
+      );
+
+      if (rawToken) {
+        try {
+          const myPageRes = await fetch('https://relayplus.kr:34308/api/myPage', {
+            method: 'GET',
+            headers,
+          });
+          if (myPageRes.ok) {
+            const myData = await myPageRes.json();
+            const enrolledLectures = myData.enrolledLectures || myData.enrollments || [];
+            if (Array.isArray(enrolledLectures)) {
+              const isFound = enrolledLectures.some(
+                (lecture: any) => String(lecture.id || lecture.lectureId) === String(studyId)
+              );
+              if (isFound) isUserApplied = true;
+            }
+          }
+        } catch (e) {
+          console.error('마이페이지 정보 로딩 실패:', e);
+        }
+      }
+
+      const singlePresenter = rawData.presenter;
+      const rawParticipants =
+        rawData.participants ||
+        rawData.enrollments ||
+        rawData.appliedUsers ||
+        rawData.applicants ||
+        [];
+
+      // 🛠️ 여기서 getNameFromToken() 함수를 호출하여 백엔드 더미 데이터를 유연하게 처리
+      const mappedParticipants = Array.isArray(rawParticipants)
+        ? rawParticipants.map((p: any, idx: number) => {
+            const pUser = p.user || p.userInfo || p.member || p;
+            const nameCandidate =
+              pUser.name ||
+              pUser.userName ||
+              pUser.authorName ||
+              pUser.nickname ||
+              p.name ||
+              p.userName ||
+              p.authorName;
+
+            // 이름이 없거나 더미인 경우 토큰에서 추출한 실제 계정 이름 활용
+            const actualName =
+              nameCandidate && nameCandidate !== '양지우'
+                ? nameCandidate
+                : getNameFromToken();
+
+            const gen = pUser.generation || pUser.authorGeneration || pUser.cohort || p.generation;
+            return {
+              id: pUser.id || pUser.userId || p.id || `p-${idx}`,
+              name: actualName,
+              department: pUser.department || pUser.authorDepartment || p.department || '',
+              cohort: gen ? (String(gen).endsWith('기') ? String(gen) : `${gen}기`) : '',
+            };
+          })
+        : [];
+
+      // 중복 제거
+      const uniqueParticipants = mappedParticipants.filter(
+        (p, index, self) =>
+          index === self.findIndex((t) => (t.id && t.id === p.id) || t.name === p.name)
+      );
+
+      const actualParticipantCount =
+        rawData.applicantCount ??
+        rawData.enrollmentCount ??
+        rawData.participantCount ??
+        rawData.currentParticipants ??
+        uniqueParticipants.length;
+
+      const formattedData: StudyDetail = {
+        id: rawData.id ?? studyId,
+        title: rawData.title || '제목 없음',
+        description: rawData.description || '내용이 없습니다.',
+        status: SERVER_TO_UI_STATUS[rawData.status] || rawData.status || '개설미정',
+        scheduledAt: rawData.scheduledAt,
+        createdAt: rawData.createdAt,
+        isApplied: isUserApplied,
+        capacity: rawData.capacity ?? rawData.maxParticipants ?? 0,
+        participantCount: actualParticipantCount,
+        commentCount: rawData.commentCount ?? commentsData.length ?? 0,
+        author: rawData.author || {
+          name: singlePresenter || '익명',
+          department: '',
+          cohort: '',
+        },
+        participants: uniqueParticipants,
+        comments: commentsData,
+        presenters:
+          rawData.presenters && rawData.presenters.length > 0
+            ? rawData.presenters
+            : singlePresenter
+              ? [singlePresenter]
+              : ['연사 정보 없음'],
+      };
+
+      setStudy(formattedData);
+    } catch (err) {
+      setError(getServerErrorMessage(err, '릴레이 스터디를 불러오지 못했어요.'));
+    } finally {
+      setIsLoading(false);
+    }
   }, [studyId]);
+
+  useEffect(() => {
+    fetchDetailAndComments();
+  }, [fetchDetailAndComments]);
 
   async function handleDeleteStudy() {
     if (!studyId || !window.confirm('정말 이 강의를 삭제하시겠습니까?')) return;
@@ -409,36 +426,46 @@ export default function StudyDetailPage() {
     setActionError(null);
     try {
       await applyStudy(studyId);
+      showToast('참가 신청이 완료되었습니다.');
+
+      // 🛠️ 여기서도 getNameFromToken()을 호출하여 내 이름 반영
+      const currentUserName = user?.name || user?.userName || getNameFromToken();
+      const currentUserDept = user?.department || '';
+      const currentUserGen = user?.generation || user?.cohort || '';
+
       setStudy((prev) => {
         if (!prev) return prev;
-
-        const nextParticipantCount = (prev.participantCount || 0) + 1;
+        const exists = prev.participants?.some((p) => p.name === currentUserName);
+        const updatedParticipants = exists
+          ? prev.participants
+          : [
+              ...(prev.participants || []),
+              {
+                id: `my-apply-${Date.now()}`,
+                name: currentUserName,
+                department: currentUserDept,
+                cohort: currentUserGen
+                  ? String(currentUserGen).endsWith('기')
+                    ? String(currentUserGen)
+                    : `${currentUserGen}기`
+                  : '',
+              },
+            ];
 
         return {
           ...prev,
-          status:
-            nextParticipantCount >= CONFIRMED_PARTICIPANT_COUNT && prev.status === '개설미정'
-              ? '개설확정'
-              : prev.status,
           isApplied: true,
-          participantCount: nextParticipantCount,
-          participants: [...(prev.participants || []), userInfo],
+          participantCount: (prev.participantCount || 0) + (exists ? 0 : 1),
+          participants: updatedParticipants,
         };
       });
+
+      await fetchDetailAndComments();
     } catch (err: any) {
       const errorMsg = getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.');
 
       if (errorMsg.includes('이미 신청') || err?.response?.status === 409) {
-        setStudy((prev) => {
-          if (!prev) return prev;
-          const exists = prev.participants?.some((p) => p.name === userInfo.name);
-          return {
-            ...prev,
-            isApplied: true,
-            participantCount: prev.participantCount === 0 ? 1 : prev.participantCount,
-            participants: exists ? prev.participants : [...(prev.participants || []), userInfo],
-          };
-        });
+        await fetchDetailAndComments();
         setActionError(null);
       } else {
         setActionError(errorMsg);
@@ -497,7 +524,6 @@ export default function StudyDetailPage() {
     ? study.presenters.join(', ')
     : '연사 정보 없음';
 
-  // 🛠️ 공지사항 페이지 방식과 동일하게 어드민 판단
   const isAuthorOrAdmin = isAdmin;
 
   return (
@@ -566,9 +592,9 @@ export default function StudyDetailPage() {
             <p className="text-sm text-gray-400 mt-3">아직 참가자가 없어요.</p>
           ) : (
             <div className="mt-3 grid grid-cols-2 gap-3">
-              {study.participants.slice(0, VISIBLE_PARTICIPANTS).map((participant) => (
+              {study.participants.slice(0, VISIBLE_PARTICIPANTS).map((participant, idx) => (
                 <div
-                  key={participant.id}
+                  key={participant.id || idx}
                   className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2"
                 >
                   <Avatar name={participant.name} className="w-8 h-8 text-xs" />
