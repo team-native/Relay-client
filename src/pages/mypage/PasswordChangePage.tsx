@@ -56,10 +56,11 @@ export default function PasswordChange() {
     try {
       setIsLoading(true);
 
-      // 💡 백엔드로 보낼 때 'currentPassword'와 'newPassword' 2개만 전달합니다.
+      // 💡 백엔드로 보낼 때 'currentPassword', 'newPassword', 'newPasswordConfirm' 3개를 전달합니다.
       await changePassword({
         currentPassword,
         newPassword,
+        newPasswordConfirm: confirmPassword,
       });
 
       setSuccess('비밀번호가 성공적으로 변경되었습니다!');

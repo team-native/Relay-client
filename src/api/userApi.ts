@@ -28,6 +28,7 @@ export async function updateMyProfile(payload: UpdateProfilePayload): Promise<Us
 export interface ChangePasswordPayload {
   currentPassword: string;
   newPassword: string;
+  newPasswordConfirm: string;
 }
 
 export async function changePassword(payload: ChangePasswordPayload): Promise<void> {
