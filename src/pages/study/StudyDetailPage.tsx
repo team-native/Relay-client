@@ -117,12 +117,19 @@ export default function StudyDetailPage() {
   const isLoggedIn = Boolean(auth?.isLoggedIn);
   const user = auth?.user || auth?.userInfo || auth?.profile || null;
 
+  // 유저 정보 유효 객체 파싱 (이름, 학과, 기수)
+  const myInfo = {
+    id: user?.id || 'my-id',
+    name: user?.name || user?.userName || '사용자',
+    department: user?.department || user?.dept || '',
+    cohort: user?.cohort || (user?.generation ? `${user.generation}기` : ''),
+  };
+
   useEffect(() => {
     if (!studyId) return;
 
     async function fetchDetailAndComments() {
       try {
-        // 1. 공통 Authorization 헤더 준비
         const token =
           localStorage.getItem('token') ||
           localStorage.getItem('accessToken') ||
@@ -140,11 +147,9 @@ export default function StudyDetailPage() {
             : `Bearer ${cleanToken}`;
         }
 
-        // 2. 스터디 상세 데이터 요청
         const detailRes = await getStudyDetail(studyId!);
         const rawData = (detailRes as any)?.data || detailRes || {};
 
-        // 3. 댓글 데이터 가공 및 별도 fetch
         let commentsData: any[] = rawData.comments || rawData.commentList || [];
         if (!commentsData.length) {
           try {
@@ -163,7 +168,6 @@ export default function StudyDetailPage() {
           }
         }
 
-        // 4. 네트워크 탭의 myPage API 활용: 내 신청 목록으로 isApplied 교차 검증
         let isUserApplied = Boolean(
           rawData.isApplied ??
             rawData.applied ??
@@ -183,7 +187,7 @@ export default function StudyDetailPage() {
               const myData = await myPageRes.json();
               const enrollments =
                 myData.enrollments || myData.data?.enrollments || myData.lectures || [];
-              
+
               if (Array.isArray(enrollments)) {
                 const found = enrollments.some(
                   (item: any) =>
@@ -199,7 +203,6 @@ export default function StudyDetailPage() {
 
         const singlePresenter = rawData.presenter;
 
-        // 참가자 목록 파싱
         const rawParticipants =
           rawData.participants ||
           rawData.enrollments ||
@@ -216,22 +219,16 @@ export default function StudyDetailPage() {
             }))
           : [];
 
-        // 참가자 목록에 내 계정이 안 보이더라도 내가 신청한 상태면 참가자 목록에 임시 추가
-        if (isUserApplied && user) {
+        // 내가 신청된 상태이면 실제 로그인 유저 데이터로 명단 삽입
+        if (isUserApplied) {
           const alreadyInList = mappedParticipants.some(
-            (p) => String(p.id) === String(user.id) || p.name === user.name
+            (p) => String(p.id) === String(myInfo.id) || p.name === myInfo.name
           );
           if (!alreadyInList) {
-            mappedParticipants.push({
-              id: user.id || 'my-id',
-              name: user.name || '나',
-              department: user.department || '',
-              cohort: user.cohort || (user.generation ? `${user.generation}기` : ''),
-            });
+            mappedParticipants.push(myInfo);
           }
         }
 
-        // 실제 인원수 보정
         let actualParticipantCount =
           rawData.applicantCount ??
           rawData.enrollmentCount ??
@@ -300,12 +297,6 @@ export default function StudyDetailPage() {
         if (!prev) return prev;
 
         const nextParticipantCount = (prev.participantCount || 0) + 1;
-        const myParticipantObj = {
-          id: user?.id || 'my-id',
-          name: user?.name || '나',
-          department: user?.department || '',
-          cohort: user?.cohort || (user?.generation ? `${user?.generation}기` : ''),
-        };
 
         return {
           ...prev,
@@ -315,28 +306,21 @@ export default function StudyDetailPage() {
               : prev.status,
           isApplied: true,
           participantCount: nextParticipantCount,
-          participants: [...(prev.participants || []), myParticipantObj],
+          participants: [...(prev.participants || []), myInfo],
         };
       });
     } catch (err: any) {
       const errorMsg = getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.');
 
-      // 이미 신청된 건(409 Conflict)으로 응답받을 경우 UI를 신청 완료 상태로 강제 전환
       if (errorMsg.includes('이미 신청') || err?.response?.status === 409) {
         setStudy((prev) => {
           if (!prev) return prev;
-          const myParticipantObj = {
-            id: user?.id || 'my-id',
-            name: user?.name || '나',
-            department: user?.department || '',
-            cohort: user?.cohort || (user?.generation ? `${user?.generation}기` : ''),
-          };
-          const exists = prev.participants?.some((p) => p.name === myParticipantObj.name);
+          const exists = prev.participants?.some((p) => p.name === myInfo.name);
           return {
             ...prev,
             isApplied: true,
             participantCount: prev.participantCount === 0 ? 1 : prev.participantCount,
-            participants: exists ? prev.participants : [...(prev.participants || []), myParticipantObj],
+            participants: exists ? prev.participants : [...(prev.participants || []), myInfo],
           };
         });
         setActionError(null);
