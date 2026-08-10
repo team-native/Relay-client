@@ -30,11 +30,9 @@ function Avatar({ name = '', className = '' }: { name?: string; className?: stri
   );
 }
 
-// 🌟 에러 방지 처리된 날짜 파싱 함수
 function parseScheduledAt(scheduledAt?: string): Date | null {
   if (!scheduledAt || typeof scheduledAt !== 'string') return null;
 
-  // 1) "10/24 18:00" 형태 포맷 처리
   const match = scheduledAt.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
   if (match) {
     const [, month, day, hour, minute] = match.map(Number);
@@ -42,7 +40,6 @@ function parseScheduledAt(scheduledAt?: string): Date | null {
     return new Date(now.getFullYear(), month - 1, day, hour, minute);
   }
 
-  // 2) ISO 날짜 포맷("2026-10-24T18:00:00") 처리
   const parsedDate = new Date(scheduledAt);
   if (!isNaN(parsedDate.getTime())) {
     return parsedDate;
@@ -108,18 +105,38 @@ export default function StudyDetailPage() {
 
     async function fetchDetail() {
       try {
-        const rawData = await getStudyDetail(studyId!);
+        const response = await getStudyDetail(studyId!);
         
-        // 🌟 백엔드 Enum(PENDING 등) ➔ UI용 한글('개설미정' 등) 자동 매핑 및 방어 처리
+        // 🌟 타입 에러 해소를 위해 any로 단서 제공 + data 감싸기 처리
+        const rawResponse = response as any;
+        const rawData = rawResponse?.data || rawResponse || {};
+
+        const singlePresenter = rawData.presenter;
+
         const formattedData: StudyDetail = {
-          ...rawData,
+          id: rawData.id ?? studyId,
+          title: rawData.title || '제목 없음',
+          description: rawData.description || '내용이 없습니다.',
           status: SERVER_TO_UI_STATUS[rawData.status] || rawData.status || '개설미정',
-          author: rawData.author || { name: '익명', department: '', cohort: '' },
+          scheduledAt: rawData.scheduledAt,
+          createdAt: rawData.createdAt,
+          isApplied: rawData.isApplied ?? false,
+          capacity: rawData.capacity ?? 0,
+          participantCount: rawData.participantCount ?? rawData.participants?.length ?? 0,
+          commentCount: rawData.commentCount ?? rawData.comments?.length ?? 0,
+          author: rawData.author || {
+            name: singlePresenter || '익명',
+            department: '',
+            cohort: '',
+          },
           participants: rawData.participants || [],
           comments: rawData.comments || [],
-          presenters: rawData.presenters || (rawData as unknown as { presenter?: string }).presenter
-            ? [(rawData as unknown as { presenter: string }).presenter]
-            : ['연사 정보 없음'],
+          presenters:
+            rawData.presenters && rawData.presenters.length > 0
+              ? rawData.presenters
+              : singlePresenter
+                ? [singlePresenter]
+                : ['연사 정보 없음'],
         };
 
         setStudy(formattedData);
@@ -246,9 +263,11 @@ export default function StudyDetailPage() {
             <Avatar name={study.author?.name} className="w-10 h-10 text-base" />
             <div>
               <p className="font-semibold">{study.author?.name || '익명'}</p>
-              <p className="text-sm text-gray-400">
-                {study.author?.department} · {study.author?.cohort}
-              </p>
+              {(study.author?.department || study.author?.cohort) && (
+                <p className="text-sm text-gray-400">
+                  {[study.author?.department, study.author?.cohort].filter(Boolean).join(' · ')}
+                </p>
+              )}
             </div>
           </div>
 
