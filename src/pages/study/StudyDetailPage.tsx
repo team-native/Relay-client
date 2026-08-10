@@ -12,7 +12,6 @@ const VISIBLE_PARTICIPANTS = 4;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const CONFIRMED_PARTICIPANT_COUNT = 10;
 
-// 백엔드 Enum -> UI 표시용 한글 변환
 const SERVER_TO_UI_STATUS: Record<string, StudyStatus> = {
   PENDING: '개설미정',
   CONFIRMED: '개설확정',
@@ -68,10 +67,11 @@ function isApplicationDeadlinePassed(scheduledAt?: string) {
   return deadline ? deadline.getTime() <= Date.now() : false;
 }
 
-// 댓글 아이템 (백엔드 댓글 응답 구조 완벽 보완)
 function CommentItem({ comment }: { comment: any }) {
-  const authorName = comment.authorName || comment.author?.name || comment.author || '익명';
-  const department = comment.authorDepartment || comment.author?.department || comment.department || '';
+  const authorName =
+    comment.authorName || comment.author?.name || comment.userName || comment.user?.name || '익명';
+  const department =
+    comment.authorDepartment || comment.author?.department || comment.department || '';
   const cohort = comment.authorGeneration
     ? `${comment.authorGeneration}기`
     : comment.author?.cohort
@@ -117,33 +117,64 @@ export default function StudyDetailPage() {
   useEffect(() => {
     if (!studyId) return;
 
-    async function fetchDetail() {
+    async function fetchDetailAndComments() {
       try {
-        const response = await getStudyDetail(studyId!);
-        
-        const rawResponse = response as any;
-        const rawData = rawResponse?.data || rawResponse || {};
+        const detailRes = await getStudyDetail(studyId!);
+        const rawData = (detailRes as any)?.data || detailRes || {};
+
+        // 댓글 데이터 방어적 파싱
+        let commentsData: any[] = rawData.comments || rawData.commentList || [];
+
+        // 상세 응답에 댓글이 없을 경우 추가 endpoint 조회
+        if (!commentsData.length) {
+          try {
+            const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+            const res = await fetch(`https://relayplus.kr:34308/api/comments?lectureId=${studyId}`, {
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            });
+            if (res.ok) {
+              const resJson = await res.json();
+              commentsData = Array.isArray(resJson) ? resJson : resJson.data || resJson.comments || [];
+            }
+          } catch (e) {
+            // fetch 실패 시 기본 empty 사용
+          }
+        }
 
         const singlePresenter = rawData.presenter;
 
-        // 🌟 백엔드 댓글 목록 필드명 방어 매핑 (comments, commentList 등)
-        const rawComments = rawData.comments || rawData.commentList || [];
+        // 참가자 목록 파싱
+        const rawParticipants =
+          rawData.participants || rawData.enrollments || rawData.appliedUsers || rawData.applicants || [];
+        const mappedParticipants = Array.isArray(rawParticipants)
+          ? rawParticipants.map((p: any, idx: number) => ({
+              id: p.id || p.userId || `p-${idx}`,
+              name: p.name || p.userName || p.authorName || '참가자',
+              department: p.department || p.authorDepartment || '',
+              cohort: p.cohort || (p.authorGeneration ? `${p.authorGeneration}기` : ''),
+            }))
+          : [];
 
-        // 🌟 참가자 목록 데이터 매핑
-        const rawParticipants = rawData.participants || rawData.enrollments || rawData.appliedUsers || [];
-        const mappedParticipants = rawParticipants.map((p: any, idx: number) => ({
-          id: p.id || p.userId || `p-${idx}`,
-          name: p.name || p.authorName || p.userName || '참가자',
-          department: p.department || p.authorDepartment || '',
-          cohort: p.cohort || (p.authorGeneration ? `${p.authorGeneration}기` : ''),
-        }));
-
+        // 인원수 필드명 감지
         const actualParticipantCount =
+          rawData.applicantCount ??
+          rawData.enrollmentCount ??
           rawData.participantCount ??
           rawData.currentParticipants ??
           rawData.appliedCount ??
           mappedParticipants.length ??
           0;
+
+        // 신청 여부 감지
+        const isUserApplied = Boolean(
+          rawData.isApplied ??
+            rawData.applied ??
+            rawData.isEnrolled ??
+            rawData.enrolled ??
+            false
+        );
 
         const formattedData: StudyDetail = {
           id: rawData.id ?? studyId,
@@ -152,22 +183,20 @@ export default function StudyDetailPage() {
           status: SERVER_TO_UI_STATUS[rawData.status] || rawData.status || '개설미정',
           scheduledAt: rawData.scheduledAt,
           createdAt: rawData.createdAt,
-          
-          isApplied: Boolean(rawData.isApplied ?? rawData.applied ?? false),
-          
+
+          isApplied: isUserApplied,
+
           capacity: rawData.capacity ?? rawData.maxParticipants ?? 0,
           participantCount: actualParticipantCount,
-          commentCount: rawData.commentCount ?? rawComments.length ?? 0,
-          
+          commentCount: rawData.commentCount ?? commentsData.length ?? 0,
+
           author: rawData.author || {
             name: singlePresenter || '익명',
             department: '',
             cohort: '',
           },
           participants: mappedParticipants,
-          
-          // 🌟 새로고침 시에도 저장되는 댓글 목록
-          comments: rawComments,
+          comments: commentsData,
 
           presenters:
             rawData.presenters && rawData.presenters.length > 0
@@ -184,7 +213,8 @@ export default function StudyDetailPage() {
         setIsLoading(false);
       }
     }
-    fetchDetail();
+
+    fetchDetailAndComments();
   }, [studyId]);
 
   async function handleApply() {
@@ -211,15 +241,6 @@ export default function StudyDetailPage() {
               : prev.status,
           isApplied: true,
           participantCount: nextParticipantCount,
-          participants: [
-            {
-              id: `me-${Date.now()}`,
-              name: '양지우',
-              department: '스마트IoT과',
-              cohort: '10기',
-            },
-            ...(prev.participants || []),
-          ],
         };
       });
     } catch (err) {
@@ -241,7 +262,7 @@ export default function StudyDetailPage() {
     setActionError(null);
     try {
       const response = await createStudyComment(studyId, commentDraft.trim());
-      
+
       const responseObj = response as any;
       const created = responseObj?.data || responseObj;
 
@@ -353,7 +374,7 @@ export default function StudyDetailPage() {
 
           <hr className="my-6 border-gray-200" />
 
-          <h2 className="text-sm font-semibold">댓글 {study.commentCount ?? 0}</h2>
+          <h2 className="text-sm font-semibold">댓글 {study.comments?.length ?? 0}</h2>
           <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 mt-4">
             <input
               value={commentDraft}
