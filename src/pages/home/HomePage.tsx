@@ -5,7 +5,7 @@ import { getStudies } from '../../api/studyApi';
 import { getServerErrorMessage, LOGIN_REQUIRED_MESSAGE } from '../../api/errors';
 import { useAuth } from '../../context/useAuth';
 import { STATUS_BADGE_STYLES, STUDY_STATUSES } from '../../constants/studyStatus';
-import type { Study, StudyStatus } from '../../types/study';
+import type { StudyStatus } from '../../types/study';
 import type { LayoutContext } from '../../components/layout/Layout';
 
 const STUDIES_PER_PAGE = 6;
