@@ -5,17 +5,11 @@ import { mockDelay } from '../mocks/delay';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
-interface ApiEnvelope<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
-
 export async function getMyProfile(): Promise<UserProfile> {
-  if (USE_MOCK) return mockProfile;
+  if (USE_MOCK) return mockDelay(mockProfile);
 
-  const res = await apiClient.get<ApiEnvelope<UserProfile>>('/api/users/myPage');
-  return res.data.data;
+  const res = await apiClient.get<UserProfile>('/api/users/myPage');
+  return res.data;
 }
 
 export type UpdateProfilePayload = Pick<UserProfile, 'name' | 'department' | 'cohort'>;
@@ -23,8 +17,8 @@ export type UpdateProfilePayload = Pick<UserProfile, 'name' | 'department' | 'co
 export async function updateMyProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
   if (USE_MOCK) return mockDelay({ ...mockProfile, ...payload });
 
-  const res = await apiClient.put<ApiEnvelope<UserProfile>>('/api/mypage/profile', payload);
-  return res.data.data;
+  const res = await apiClient.patch<UserProfile>('/api/users/myPage/profile', payload);
+  return res.data;
 }
 
 export interface ChangePasswordPayload {
@@ -40,5 +34,5 @@ export async function changePassword(payload: ChangePasswordPayload): Promise<vo
     return mockDelay(undefined);
   }
 
-  await apiClient.put('/api/mypage/password', payload);
+  await apiClient.patch('/api/users/myPage/password', payload);
 }
