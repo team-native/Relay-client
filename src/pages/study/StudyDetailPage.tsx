@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { Link, useOutletContext, useParams, useNavigate } from 'react-router-dom';
 import { Calendar, ChevronLeft, User, Users } from 'lucide-react';
-import { applyStudy, createStudyComment, getStudyDetail } from '../../api/studyApi';
+import { applyStudy, createStudyComment, getStudyDetail, deleteStudy } from '../../api/studyApi';
 import { getServerErrorMessage, LOGIN_REQUIRED_MESSAGE } from '../../api/errors';
 import { useAuth } from '../../context/useAuth';
 import { STATUS_BADGE_STYLES } from '../../constants/studyStatus';
@@ -12,7 +12,6 @@ const VISIBLE_PARTICIPANTS = 4;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const CONFIRMED_PARTICIPANT_COUNT = 10;
 
-// 백엔드 Enum -> UI 표시용 한글 변환
 const SERVER_TO_UI_STATUS: Record<string, StudyStatus> = {
   PENDING: '개설미정',
   CONFIRMED: '개설확정',
@@ -68,15 +67,21 @@ function isApplicationDeadlinePassed(scheduledAt?: string) {
   return deadline ? deadline.getTime() <= Date.now() : false;
 }
 
-// 🌟 백엔드 댓글 응답 객체 구조에 맞춰 필드 호환성 추가
 function CommentItem({ comment }: { comment: any }) {
-  const authorName = comment.authorName || comment.author || '익명';
-  const department = comment.authorDepartment || comment.department || '';
-  const cohort = comment.authorGeneration
-    ? `${comment.authorGeneration}기`
-    : comment.cohort
-      ? `${comment.cohort}`
-      : '';
+  const authorName =
+    comment.authorName ||
+    comment.author?.name ||
+    comment.userName ||
+    comment.user?.name ||
+    comment.name ||
+    '익명';
+
+  const department =
+    comment.authorDepartment || comment.author?.department || comment.department || '';
+
+  const gen = comment.generation || comment.authorGeneration || comment.cohort;
+  const cohort = gen ? (String(gen).endsWith('기') ? String(gen) : `${gen}기`) : '';
+
   const createdAt = comment.timeAgo || comment.createdAt || '';
 
   return (
@@ -100,6 +105,7 @@ function CommentItem({ comment }: { comment: any }) {
 
 export default function StudyDetailPage() {
   const { studyId } = useParams<{ studyId: string }>();
+  const navigate = useNavigate();
 
   const [study, setStudy] = useState<StudyDetail | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
@@ -108,21 +114,153 @@ export default function StudyDetailPage() {
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [userInfo, setUserInfo] = useState<any>({
+    id: 1,
+    name: '양지우',
+    department: '',
+    cohort: '',
+  });
 
   const { showToast } = useOutletContext<LayoutContext>();
-  const { isLoggedIn } = useAuth();
+
+  const auth = useAuth() as Record<string, any>;
+  const isLoggedIn = Boolean(auth?.isLoggedIn || localStorage.getItem('token'));
+  const user = auth?.user || auth?.userInfo || auth;
+  const isAdmin = (user?.role || localStorage.getItem('role')) === 'ADMIN';
 
   useEffect(() => {
     if (!studyId) return;
 
-    async function fetchDetail() {
+    async function fetchDetailAndComments() {
       try {
-        const response = await getStudyDetail(studyId!);
-        
-        const rawResponse = response as any;
-        const rawData = rawResponse?.data || rawResponse || {};
+        const token =
+          localStorage.getItem('token') ||
+          localStorage.getItem('accessToken') ||
+          localStorage.getItem('JWT') ||
+          localStorage.getItem('auth');
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+
+        if (token) {
+          const cleanToken = token.replace(/^"(.*)"$/, '$1');
+          headers['Authorization'] = cleanToken.startsWith('Bearer ')
+            ? cleanToken
+            : `Bearer ${cleanToken}`;
+        }
+
+        const detailRes = await getStudyDetail(studyId!);
+        const rawData = (detailRes as any)?.data || detailRes || {};
+
+        let commentsData: any[] = rawData.comments || rawData.commentList || [];
+        if (!commentsData.length) {
+          try {
+            const res = await fetch(`https://relayplus.kr:34308/api/comments?lectureId=${studyId}`, {
+              method: 'GET',
+              headers,
+            });
+            if (res.ok) {
+              const resJson = await res.json();
+              commentsData = Array.isArray(resJson)
+                ? resJson
+                : resJson.data || resJson.comments || [];
+            }
+          } catch (e) {
+            console.error('댓글 API 요청 실패:', e);
+          }
+        }
+
+        let isUserApplied = Boolean(
+          rawData.isApplied ??
+            rawData.applied ??
+            rawData.isEnrolled ??
+            rawData.enrolled ??
+            false
+        );
+
+        let currentUser = {
+          id: 1,
+          name: '양지우',
+          department: 'SMART_IOT',
+          cohort: '10기',
+        };
+
+        if (token) {
+          try {
+            const myPageRes = await fetch('https://relayplus.kr:34308/api/myPage', {
+              method: 'GET',
+              headers,
+            });
+            if (myPageRes.ok) {
+              const myData = await myPageRes.json();
+              const name = myData.name || '양지우';
+              const department = myData.department || '';
+              const gen = myData.generation;
+              const cohort = gen ? `${gen}기` : '';
+
+              currentUser = {
+                id: myData.userId || myData.id || 1,
+                name,
+                department,
+                cohort,
+              };
+
+              const enrolledLectures = myData.enrolledLectures || myData.enrollments || [];
+              if (Array.isArray(enrolledLectures)) {
+                const isFound = enrolledLectures.some(
+                  (lecture: any) => String(lecture.id || lecture.lectureId) === String(studyId)
+                );
+                if (isFound) isUserApplied = true;
+              }
+            }
+          } catch (e) {
+            console.error('마이페이지 정보 로딩 실패:', e);
+          }
+        }
+
+        setUserInfo(currentUser);
 
         const singlePresenter = rawData.presenter;
+        const rawParticipants =
+          rawData.participants ||
+          rawData.enrollments ||
+          rawData.appliedUsers ||
+          rawData.applicants ||
+          [];
+
+        let mappedParticipants = Array.isArray(rawParticipants)
+          ? rawParticipants.map((p: any, idx: number) => {
+              const gen = p.generation || p.authorGeneration || p.cohort;
+              return {
+                id: p.id || p.userId || `p-${idx}`,
+                name: p.name || p.userName || p.authorName || '참가자',
+                department: p.department || p.authorDepartment || '',
+                cohort: gen ? (String(gen).endsWith('기') ? String(gen) : `${gen}기`) : '',
+              };
+            })
+          : [];
+
+        if (isUserApplied) {
+          const exists = mappedParticipants.some(
+            (p) => String(p.id) === String(currentUser.id) || p.name === currentUser.name
+          );
+
+          if (!exists) {
+            mappedParticipants.push(currentUser);
+          }
+        }
+
+        let actualParticipantCount =
+          rawData.applicantCount ??
+          rawData.enrollmentCount ??
+          rawData.participantCount ??
+          rawData.currentParticipants ??
+          mappedParticipants.length;
+
+        if (isUserApplied && actualParticipantCount === 0) {
+          actualParticipantCount = mappedParticipants.length || 1;
+        }
 
         const formattedData: StudyDetail = {
           id: rawData.id ?? studyId,
@@ -131,17 +269,17 @@ export default function StudyDetailPage() {
           status: SERVER_TO_UI_STATUS[rawData.status] || rawData.status || '개설미정',
           scheduledAt: rawData.scheduledAt,
           createdAt: rawData.createdAt,
-          isApplied: rawData.isApplied ?? false,
-          capacity: rawData.capacity ?? 0,
-          participantCount: rawData.participantCount ?? rawData.participants?.length ?? 0,
-          commentCount: rawData.commentCount ?? rawData.comments?.length ?? 0,
+          isApplied: isUserApplied,
+          capacity: rawData.capacity ?? rawData.maxParticipants ?? 0,
+          participantCount: actualParticipantCount,
+          commentCount: rawData.commentCount ?? commentsData.length ?? 0,
           author: rawData.author || {
             name: singlePresenter || '익명',
             department: '',
             cohort: '',
           },
-          participants: rawData.participants || [],
-          comments: rawData.comments || [],
+          participants: mappedParticipants,
+          comments: commentsData,
           presenters:
             rawData.presenters && rawData.presenters.length > 0
               ? rawData.presenters
@@ -157,8 +295,21 @@ export default function StudyDetailPage() {
         setIsLoading(false);
       }
     }
-    fetchDetail();
+
+    fetchDetailAndComments();
   }, [studyId]);
+
+  // 🛠️ 강의 삭제 처리 (DELETE /api/lectures/lecture/{id})
+  async function handleDeleteStudy() {
+    if (!studyId || !window.confirm('정말 이 강의를 삭제하시겠습니까?')) return;
+    try {
+      await deleteStudy(studyId);
+      alert('강의가 삭제되었습니다.');
+      navigate('/');
+    } catch (err) {
+      alert(getServerErrorMessage(err, '강의 삭제에 실패했습니다.'));
+    }
+  }
 
   async function handleApply() {
     if (!studyId || !study) return;
@@ -184,19 +335,27 @@ export default function StudyDetailPage() {
               : prev.status,
           isApplied: true,
           participantCount: nextParticipantCount,
-          participants: [
-            {
-              id: `me-${Date.now()}`,
-              name: '양지우',
-              department: '스마트IoT과',
-              cohort: '10기',
-            },
-            ...(prev.participants || []),
-          ],
+          participants: [...(prev.participants || []), userInfo],
         };
       });
-    } catch (err) {
-      setActionError(getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.'));
+    } catch (err: any) {
+      const errorMsg = getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.');
+
+      if (errorMsg.includes('이미 신청') || err?.response?.status === 409) {
+        setStudy((prev) => {
+          if (!prev) return prev;
+          const exists = prev.participants?.some((p) => p.name === userInfo.name);
+          return {
+            ...prev,
+            isApplied: true,
+            participantCount: prev.participantCount === 0 ? 1 : prev.participantCount,
+            participants: exists ? prev.participants : [...(prev.participants || []), userInfo],
+          };
+        });
+        setActionError(null);
+      } else {
+        setActionError(errorMsg);
+      }
     } finally {
       setIsApplying(false);
     }
@@ -214,9 +373,8 @@ export default function StudyDetailPage() {
     setActionError(null);
     try {
       const response = await createStudyComment(studyId, commentDraft.trim());
-      
-      // 🌟 백엔드 응답 구조 ({ message: "...", data: { ... } }) 대응
-      const created = (response as any)?.data || response;
+      const responseObj = response as any;
+      const created = responseObj?.data || responseObj;
 
       setStudy((prev) =>
         prev
@@ -244,7 +402,7 @@ export default function StudyDetailPage() {
   const isDeadlinePassed = isApplicationDeadlinePassed(study.scheduledAt);
   const participantCount = study.participantCount ?? 0;
   const capacity = study.capacity ?? 0;
-  const isFull = participantCount >= capacity;
+  const isFull = participantCount >= capacity && capacity > 0;
   const hiddenParticipantCount = participantCount - VISIBLE_PARTICIPANTS;
   const deadlineText = getApplicationDeadlineText(study.scheduledAt);
 
@@ -252,15 +410,38 @@ export default function StudyDetailPage() {
     ? study.presenters.join(', ')
     : '연사 정보 없음';
 
+  // 작성자 또는 어드민 여부 확인
+  const isAuthorOrAdmin = isAdmin || study.author?.name === userInfo.name;
+
   return (
     <div>
-      <Link
-        to="/"
-        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800"
-      >
-        <ChevronLeft className="w-4 h-4" strokeWidth={1.8} />
-        홈으로
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800"
+        >
+          <ChevronLeft className="w-4 h-4" strokeWidth={1.8} />
+          홈으로
+        </Link>
+
+        {/* 🛠️ 작성자 또는 어드민일 때 강의 수정/삭제 버튼 노출 */}
+        {isAuthorOrAdmin && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigate(`/lecture/${studyId}/edit`)}
+              className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+            >
+              수정
+            </button>
+            <button
+              onClick={handleDeleteStudy}
+              className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
+            >
+              삭제
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-[1fr_280px] gap-6 items-start mt-5">
         <div>
@@ -326,7 +507,7 @@ export default function StudyDetailPage() {
 
           <hr className="my-6 border-gray-200" />
 
-          <h2 className="text-sm font-semibold">댓글 {study.commentCount ?? 0}</h2>
+          <h2 className="text-sm font-semibold">댓글 {study.comments?.length ?? 0}</h2>
           <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 mt-4">
             <input
               value={commentDraft}

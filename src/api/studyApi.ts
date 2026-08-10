@@ -157,3 +157,14 @@ export async function createStudyComment(
 
   return res.data;
 }
+
+export async function deleteStudy(studyId: string) {
+  const response = await apiClient.delete(`/api/lectures/lecture/${studyId}`);
+  return response.data;
+}
+
+// 강의 수정 API (PATCH /api/lectures/lecture/{studyId})
+export async function updateStudy(studyId: string, payload: any) {
+  const response = await apiClient.patch(`/api/lectures/lecture/${studyId}`, payload);
+  return response.data;
+}
