@@ -40,6 +40,30 @@ interface StudyCardProps {
   study: APIStudyResponse;
 }
 
+// 🛠️ 날짜가 현재 시간보다 지났는지 확인하는 함수 (자동 종료 판별용)
+function isExpired(scheduledAt?: string): boolean {
+  if (!scheduledAt) return false;
+
+  try {
+    let dateObj: Date | null = null;
+    const match = scheduledAt.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
+    if (match) {
+      const [, month, day, hour, minute] = match.map(Number);
+      const now = new Date();
+      dateObj = new Date(now.getFullYear(), month - 1, day, hour, minute);
+    } else {
+      dateObj = new Date(scheduledAt);
+    }
+
+    if (dateObj && !isNaN(dateObj.getTime())) {
+      return dateObj.getTime() < Date.now();
+    }
+  } catch (e) {
+    return false;
+  }
+  return false;
+}
+
 function StudyCard({ study }: StudyCardProps) {
   const presenterText = Array.isArray(study.presenters)
     ? study.presenters.join(', ')
@@ -53,7 +77,6 @@ function StudyCard({ study }: StudyCardProps) {
 
   const maxCapacity = study.capacity ?? study.maxParticipants ?? 0;
 
-  // 다양한 댓글 필드명 탐색
   const countOfComments =
     study.commentCount ??
     study.commentsCount ??
@@ -133,25 +156,35 @@ export default function HomePage() {
           listData = (rawData as { data: any[] }).data;
         }
 
-        // 1차 기본 매핑
-        const formattedList = listData.map((item) => ({
-          ...item,
-          status: SERVER_TO_UI_STATUS[item.status] || item.status,
-          participantCount:
-            item.participantCount ??
-            item.currentParticipants ??
-            item.appliedCount ??
-            0,
-          capacity: item.capacity ?? item.maxParticipants ?? 0,
-          commentCount:
-            item.commentCount ??
-            item.commentsCount ??
-            (Array.isArray(item.comments) ? item.comments.length : 0),
-        }));
+        // 🛠️ 기간 지남 판별 로직 추가
+        const formattedList = listData.map((item) => {
+          let computedStatus: StudyStatus =
+            SERVER_TO_UI_STATUS[item.status] || item.status || '개설미정';
+
+          // 일정 시간이 현재 시간보다 지났다면 '종료'로 자동 변환!
+          if (isExpired(item.scheduledAt)) {
+            computedStatus = '종료';
+          }
+
+          return {
+            ...item,
+            status: computedStatus,
+            participantCount:
+              item.participantCount ??
+              item.currentParticipants ??
+              item.appliedCount ??
+              0,
+            capacity: item.capacity ?? item.maxParticipants ?? 0,
+            commentCount:
+              item.commentCount ??
+              item.commentsCount ??
+              (Array.isArray(item.comments) ? item.comments.length : 0),
+          };
+        });
 
         setStudies(formattedList);
 
-        // 🛠️ 2차 보완: 목록 API에서 commentCount를 전혀 안 주는 백엔드 구조일 경우 댓글 수 직접 패치
+        // 댓글 수 보완 로직 (댓글 0개인 항목 개별 확인)
         const rawToken =
           localStorage.getItem('relay_access_token') ||
           localStorage.getItem('token') ||
@@ -165,7 +198,6 @@ export default function HomePage() {
           headers['Authorization'] = cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`;
         }
 
-        // 각 스터디 카드별 댓글 수 개별 보완
         const updatedList = await Promise.all(
           formattedList.map(async (studyItem) => {
             if (studyItem.commentCount && studyItem.commentCount > 0) return studyItem;
