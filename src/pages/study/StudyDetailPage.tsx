@@ -30,6 +30,38 @@ function getDepartmentLabel(code: string | undefined | null): string {
   return DEPARTMENT_LABEL_MAP[code] || code;
 }
 
+// 🛠️ JWT 토큰을 파싱하여 payload 내부의 role을 꺼내는 함수 (NoticeListPage와 동일)
+function getRoleFromToken(): string | null {
+  try {
+    const token =
+      localStorage.getItem('relay_access_token') ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('accessToken') ||
+      localStorage.getItem('JWT') ||
+      localStorage.getItem('auth');
+
+    if (!token) return null;
+
+    const cleanToken = token.replace(/^"(.*)"$/, '$1').replace(/^Bearer\s+/i, '');
+    const base64Url = cleanToken.split('.')[1];
+    if (!base64Url) return null;
+
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+
+    const parsed = JSON.parse(jsonPayload);
+    return parsed?.role || parsed?.auth || parsed?.roles?.[0] || parsed?.userRole || null;
+  } catch (e) {
+    console.error('토큰 파싱 실패:', e);
+    return null;
+  }
+}
+
 function Avatar({ name = '', className = '' }: { name?: string; className?: string }) {
   const safeName = name || '익명';
   return (
@@ -136,15 +168,17 @@ export default function StudyDetailPage() {
 
   const { showToast } = useOutletContext<LayoutContext>();
 
-  // 🛠️ 권한 검사 로직 대폭 강화 (ADMIN 및 ROLE_ADMIN 대응)
+  // 🛠️ Auth Context + LocalStorage + JWT Token 디코딩으로 어드민 판단 (NoticeListPage 동일 방식)
   const auth = useAuth() as Record<string, any>;
   const isLoggedIn = Boolean(
-    auth?.isLoggedIn || localStorage.getItem('token') || localStorage.getItem('accessToken')
+    auth?.isLoggedIn ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('accessToken') ||
+      localStorage.getItem('relay_access_token')
   );
 
   const user = auth?.user || auth?.userInfo || auth;
-  const localRole =
-    localStorage.getItem('role') || localStorage.getItem('userRole') || '';
+  const tokenRole = getRoleFromToken();
 
   let localUserRole = '';
   try {
@@ -157,11 +191,18 @@ export default function StudyDetailPage() {
     // ignore json error
   }
 
-  const rawRole = String(
-    user?.role || user?.userRole || localRole || localUserRole || ''
-  ).toUpperCase();
+  const role =
+    user?.role ||
+    user?.userRole ||
+    auth?.role ||
+    localStorage.getItem('role') ||
+    localStorage.getItem('userRole') ||
+    localUserRole ||
+    tokenRole ||
+    '';
 
-  const isAdmin = rawRole.includes('ADMIN');
+  // ROLE_ADMIN, ADMIN, 소문자 admin 모두 처리 가능하도록 includes 활용
+  const isAdmin = String(role).toUpperCase().includes('ADMIN');
 
   useEffect(() => {
     if (!studyId) return;
@@ -170,6 +211,7 @@ export default function StudyDetailPage() {
       try {
         // 🛠️ 토큰 파싱 보강 (401 에러 방지)
         const rawToken =
+          localStorage.getItem('relay_access_token') ||
           localStorage.getItem('token') ||
           localStorage.getItem('accessToken') ||
           localStorage.getItem('JWT') ||
@@ -455,7 +497,7 @@ export default function StudyDetailPage() {
     ? study.presenters.join(', ')
     : '연사 정보 없음';
 
-  // 🛠️ 어드민 노출 결정
+  // 🛠️ 공지사항 페이지 방식과 동일하게 어드민 판단
   const isAuthorOrAdmin = isAdmin;
 
   return (
