@@ -136,10 +136,32 @@ export default function StudyDetailPage() {
 
   const { showToast } = useOutletContext<LayoutContext>();
 
+  // 🛠️ 권한 검사 로직 대폭 강화 (ADMIN 및 ROLE_ADMIN 대응)
   const auth = useAuth() as Record<string, any>;
-  const isLoggedIn = Boolean(auth?.isLoggedIn || localStorage.getItem('token'));
+  const isLoggedIn = Boolean(
+    auth?.isLoggedIn || localStorage.getItem('token') || localStorage.getItem('accessToken')
+  );
+
   const user = auth?.user || auth?.userInfo || auth;
-  const isAdmin = (user?.role || localStorage.getItem('role')) === 'ADMIN';
+  const localRole =
+    localStorage.getItem('role') || localStorage.getItem('userRole') || '';
+
+  let localUserRole = '';
+  try {
+    const localUserRaw = localStorage.getItem('user');
+    if (localUserRaw) {
+      const parsed = JSON.parse(localUserRaw);
+      localUserRole = parsed?.role || parsed?.userRole || '';
+    }
+  } catch (e) {
+    // ignore json error
+  }
+
+  const rawRole = String(
+    user?.role || user?.userRole || localRole || localUserRole || ''
+  ).toUpperCase();
+
+  const isAdmin = rawRole.includes('ADMIN');
 
   useEffect(() => {
     if (!studyId) return;
@@ -433,7 +455,7 @@ export default function StudyDetailPage() {
     ? study.presenters.join(', ')
     : '연사 정보 없음';
 
-  // 🛠️ 어드민만 수정/삭제 노출
+  // 🛠️ 어드민 노출 결정
   const isAuthorOrAdmin = isAdmin;
 
   return (
@@ -512,7 +534,6 @@ export default function StudyDetailPage() {
                     <p className="text-sm font-semibold truncate">{participant.name}</p>
                     {(participant.department || participant.cohort) && (
                       <p className="text-xs text-gray-400 truncate">
-                        {/* 🛠️ getDepartmentLabel로 한글 표기 변환 */}
                         {[getDepartmentLabel(participant.department), participant.cohort]
                           .filter(Boolean)
                           .join(' · ')}
