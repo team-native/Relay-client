@@ -18,6 +18,18 @@ const SERVER_TO_UI_STATUS: Record<string, StudyStatus> = {
   FINISHED: '종료',
 };
 
+// 🛠️ 학과 영문 코드를 한글 명칭으로 변환하는 매핑 및 함수
+const DEPARTMENT_LABEL_MAP: Record<string, string> = {
+  SW_DEVELOPMENT: '소프트웨어개발과',
+  SMART_IOT: '스마트IoT과',
+  AI: 'AI과',
+};
+
+function getDepartmentLabel(code: string | undefined | null): string {
+  if (!code) return '';
+  return DEPARTMENT_LABEL_MAP[code] || code;
+}
+
 function Avatar({ name = '', className = '' }: { name?: string; className?: string }) {
   const safeName = name || '익명';
   return (
@@ -76,8 +88,9 @@ function CommentItem({ comment }: { comment: any }) {
     comment.name ||
     '익명';
 
-  const department =
+  const rawDept =
     comment.authorDepartment || comment.author?.department || comment.department || '';
+  const department = getDepartmentLabel(rawDept);
 
   const gen = comment.generation || comment.authorGeneration || comment.cohort;
   const cohort = gen ? (String(gen).endsWith('기') ? String(gen) : `${gen}기`) : '';
@@ -117,8 +130,8 @@ export default function StudyDetailPage() {
   const [userInfo, setUserInfo] = useState<any>({
     id: 1,
     name: '양지우',
-    department: '',
-    cohort: '',
+    department: 'SMART_IOT',
+    cohort: '10기',
   });
 
   const { showToast } = useOutletContext<LayoutContext>();
@@ -133,7 +146,8 @@ export default function StudyDetailPage() {
 
     async function fetchDetailAndComments() {
       try {
-        const token =
+        // 🛠️ 토큰 파싱 보강 (401 에러 방지)
+        const rawToken =
           localStorage.getItem('token') ||
           localStorage.getItem('accessToken') ||
           localStorage.getItem('JWT') ||
@@ -143,8 +157,8 @@ export default function StudyDetailPage() {
           'Content-Type': 'application/json',
         };
 
-        if (token) {
-          const cleanToken = token.replace(/^"(.*)"$/, '$1');
+        if (rawToken) {
+          const cleanToken = rawToken.replace(/^"(.*)"$/, '$1');
           headers['Authorization'] = cleanToken.startsWith('Bearer ')
             ? cleanToken
             : `Bearer ${cleanToken}`;
@@ -154,12 +168,10 @@ export default function StudyDetailPage() {
         const rawData = (detailRes as any)?.data || detailRes || {};
 
         let commentsData: any[] = rawData.comments || rawData.commentList || [];
-        
-        // 🛠️ 백엔드 요구 스펙에 맞게 댓글 조회를 요청하는 URL 경로들을 순차적으로 시도
+
+        // 🛠️ 댓글 조회 시 Authorization 헤더 전달
         if (!commentsData.length) {
           try {
-            // 1순위: /api/lectures/{lectureId}/comments
-            // 2순위: /api/lectures/lecture/{lectureId}/comments
             let res = await fetch(`https://relayplus.kr:34308/api/lectures/${studyId}/comments`, {
               method: 'GET',
               headers,
@@ -198,7 +210,7 @@ export default function StudyDetailPage() {
           cohort: '10기',
         };
 
-        if (token) {
+        if (rawToken) {
           try {
             const myPageRes = await fetch('https://relayplus.kr:34308/api/myPage', {
               method: 'GET',
@@ -207,7 +219,7 @@ export default function StudyDetailPage() {
             if (myPageRes.ok) {
               const myData = await myPageRes.json();
               const name = myData.name || '양지우';
-              const department = myData.department || '';
+              const department = myData.department || 'SMART_IOT';
               const gen = myData.generation;
               const cohort = gen ? `${gen}기` : '';
 
@@ -311,7 +323,6 @@ export default function StudyDetailPage() {
     fetchDetailAndComments();
   }, [studyId]);
 
-  // 🛠️ 강의 삭제 처리 (DELETE /api/lectures/lecture/{id})
   async function handleDeleteStudy() {
     if (!studyId || !window.confirm('정말 이 강의를 삭제하시겠습니까?')) return;
     try {
@@ -422,7 +433,8 @@ export default function StudyDetailPage() {
     ? study.presenters.join(', ')
     : '연사 정보 없음';
 
-  const isAuthorOrAdmin = isAdmin
+  // 🛠️ 어드민만 수정/삭제 노출
+  const isAuthorOrAdmin = isAdmin;
 
   return (
     <div>
@@ -471,7 +483,9 @@ export default function StudyDetailPage() {
               <p className="font-semibold">{study.author?.name || '익명'}</p>
               {(study.author?.department || study.author?.cohort) && (
                 <p className="text-sm text-gray-400">
-                  {[study.author?.department, study.author?.cohort].filter(Boolean).join(' · ')}
+                  {[getDepartmentLabel(study.author?.department), study.author?.cohort]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </p>
               )}
             </div>
@@ -498,7 +512,10 @@ export default function StudyDetailPage() {
                     <p className="text-sm font-semibold truncate">{participant.name}</p>
                     {(participant.department || participant.cohort) && (
                       <p className="text-xs text-gray-400 truncate">
-                        {[participant.department, participant.cohort].filter(Boolean).join(' · ')}
+                        {/* 🛠️ getDepartmentLabel로 한글 표기 변환 */}
+                        {[getDepartmentLabel(participant.department), participant.cohort]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </p>
                     )}
                   </div>
