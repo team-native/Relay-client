@@ -25,7 +25,7 @@ export async function getStudies(): Promise<Study[]> {
     return mockDelay(mockStudyStore.map((study) => ({ ...study })));
   }
 
-  const res = await apiClient.get<Study[]>('/api/lectures/lecture');
+  const res = await apiClient.get<Study[]>('/api/lectures/home');
   return res.data;
 }
 
