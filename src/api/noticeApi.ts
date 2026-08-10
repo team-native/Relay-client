@@ -23,7 +23,7 @@ export async function getNoticeDetail(noticeId: string): Promise<NoticeDetail> {
 }
 
 export async function createNotice(payload: { title: string; content: string }) {
-  const response = await apiClient.post('/api/notice/new', payload);
+  const response = await apiClient.post('/api/notice', payload);
   return response.data;
 }
 
