@@ -26,12 +26,14 @@ interface APIStudyResponse {
   scheduledAt?: string;
   capacity?: number;
   maxParticipants?: number;
-  status: string; // 변환 후 '개설미정' 등 StudyStatus 타입이 들어감
+  status: string;
   createdAt?: string;
   participantCount?: number;
   currentParticipants?: number;
   appliedCount?: number;
   commentCount?: number;
+  commentsCount?: number;
+  comments?: any[];
 }
 
 interface StudyCardProps {
@@ -43,7 +45,6 @@ function StudyCard({ study }: StudyCardProps) {
     ? study.presenters.join(', ')
     : study.presenter || '발표자 없음';
 
-  // 🌟 백엔드 필드명(participantCount, currentParticipants, appliedCount) 호환 처리
   const currentCount =
     study.participantCount ??
     study.currentParticipants ??
@@ -51,6 +52,12 @@ function StudyCard({ study }: StudyCardProps) {
     0;
 
   const maxCapacity = study.capacity ?? study.maxParticipants ?? 0;
+
+  // 다양한 댓글 필드명 탐색
+  const countOfComments =
+    study.commentCount ??
+    study.commentsCount ??
+    (Array.isArray(study.comments) ? study.comments.length : 0);
 
   return (
     <Link
@@ -86,12 +93,11 @@ function StudyCard({ study }: StudyCardProps) {
       <div className="flex items-center justify-between border-t border-gray-100 mt-8 pt-4 text-sm text-gray-400">
         <span className="flex items-center gap-1.5">
           <Users className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          {/* 🌟 수정된 인원수 출력 부분 */}
           {currentCount}/{maxCapacity}명
         </span>
         <span className="flex items-center gap-1.5">
           <MessageSquare className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          {study.commentCount ?? 0}
+          {countOfComments}
         </span>
       </div>
     </Link>
@@ -127,7 +133,7 @@ export default function HomePage() {
           listData = (rawData as { data: any[] }).data;
         }
 
-        // 백엔드 데이터 변환 및 안전 필드 매핑
+        // 1차 기본 매핑
         const formattedList = listData.map((item) => ({
           ...item,
           status: SERVER_TO_UI_STATUS[item.status] || item.status,
@@ -137,9 +143,64 @@ export default function HomePage() {
             item.appliedCount ??
             0,
           capacity: item.capacity ?? item.maxParticipants ?? 0,
+          commentCount:
+            item.commentCount ??
+            item.commentsCount ??
+            (Array.isArray(item.comments) ? item.comments.length : 0),
         }));
 
         setStudies(formattedList);
+
+        // 🛠️ 2차 보완: 목록 API에서 commentCount를 전혀 안 주는 백엔드 구조일 경우 댓글 수 직접 패치
+        const rawToken =
+          localStorage.getItem('relay_access_token') ||
+          localStorage.getItem('token') ||
+          localStorage.getItem('accessToken') ||
+          localStorage.getItem('JWT') ||
+          localStorage.getItem('auth');
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (rawToken) {
+          const cleanToken = rawToken.replace(/^"(.*)"$/, '$1');
+          headers['Authorization'] = cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`;
+        }
+
+        // 각 스터디 카드별 댓글 수 개별 보완
+        const updatedList = await Promise.all(
+          formattedList.map(async (studyItem) => {
+            if (studyItem.commentCount && studyItem.commentCount > 0) return studyItem;
+
+            try {
+              let res = await fetch(`https://relayplus.kr:34308/api/lectures/${studyItem.id}/comments`, {
+                method: 'GET',
+                headers,
+              });
+
+              if (!res.ok) {
+                res = await fetch(`https://relayplus.kr:34308/api/lectures/lecture/${studyItem.id}/comments`, {
+                  method: 'GET',
+                  headers,
+                });
+              }
+
+              if (res.ok) {
+                const resJson = await res.json();
+                const commentsArr = Array.isArray(resJson)
+                  ? resJson
+                  : resJson.data || resJson.comments || [];
+                return {
+                  ...studyItem,
+                  commentCount: commentsArr.length,
+                };
+              }
+            } catch (e) {
+              // Ignore API errors
+            }
+            return studyItem;
+          })
+        );
+
+        setStudies(updatedList);
       } catch (err) {
         setError(getServerErrorMessage(err, '릴레이 스터디를 불러오지 못했어요.'));
       } finally {
