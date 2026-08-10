@@ -5,35 +5,55 @@ import { applyStudy, createStudyComment, getStudyDetail } from '../../api/studyA
 import { getServerErrorMessage, LOGIN_REQUIRED_MESSAGE } from '../../api/errors';
 import { useAuth } from '../../context/useAuth';
 import { STATUS_BADGE_STYLES } from '../../constants/studyStatus';
-import type { StudyComment, StudyDetail } from '../../types/study';
+import type { StudyComment, StudyDetail, StudyStatus } from '../../types/study';
 import type { LayoutContext } from '../../components/layout/Layout';
 
 const VISIBLE_PARTICIPANTS = 4;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const CONFIRMED_PARTICIPANT_COUNT = 10;
 
-function Avatar({ name, className = '' }: { name: string; className?: string }) {
+// 백엔드 Enum -> UI 표시용 한글 변환
+const SERVER_TO_UI_STATUS: Record<string, StudyStatus> = {
+  PENDING: '개설미정',
+  CONFIRMED: '개설확정',
+  FINISHED: '종료',
+};
+
+function Avatar({ name = '', className = '' }: { name?: string; className?: string }) {
+  const safeName = name || '익명';
   return (
     <span
       className={`shrink-0 rounded-full bg-[#FFDD86] text-black flex items-center justify-center font-semibold ${className}`}
     >
-      {name.charAt(0)}
+      {safeName.charAt(0)}
     </span>
   );
 }
 
-function parseScheduledAt(scheduledAt: string) {
-  const match = scheduledAt.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
+// 🌟 에러 방지 처리된 날짜 파싱 함수
+function parseScheduledAt(scheduledAt?: string): Date | null {
+  if (!scheduledAt || typeof scheduledAt !== 'string') return null;
 
-  const [, month, day, hour, minute] = match.map(Number);
-  const now = new Date();
-  return new Date(now.getFullYear(), month - 1, day, hour, minute);
+  // 1) "10/24 18:00" 형태 포맷 처리
+  const match = scheduledAt.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
+  if (match) {
+    const [, month, day, hour, minute] = match.map(Number);
+    const now = new Date();
+    return new Date(now.getFullYear(), month - 1, day, hour, minute);
+  }
+
+  // 2) ISO 날짜 포맷("2026-10-24T18:00:00") 처리
+  const parsedDate = new Date(scheduledAt);
+  if (!isNaN(parsedDate.getTime())) {
+    return parsedDate;
+  }
+
+  return null;
 }
 
-function getApplicationDeadlineText(scheduledAt: string) {
+function getApplicationDeadlineText(scheduledAt?: string) {
   const deadline = parseScheduledAt(scheduledAt);
-  if (!deadline) return '신청 마감일을 확인해주세요.';
+  if (!deadline) return '일정을 확인해주세요.';
 
   const now = new Date();
   const remainingDays = Math.ceil((deadline.getTime() - now.getTime()) / MS_PER_DAY);
@@ -46,7 +66,7 @@ function getApplicationDeadlineText(scheduledAt: string) {
   return `신청 마감: ${formatted} (${remainingDays}일 남음)`;
 }
 
-function isApplicationDeadlinePassed(scheduledAt: string) {
+function isApplicationDeadlinePassed(scheduledAt?: string) {
   const deadline = parseScheduledAt(scheduledAt);
   return deadline ? deadline.getTime() <= Date.now() : false;
 }
@@ -56,7 +76,7 @@ function CommentItem({ comment }: { comment: StudyComment }) {
     <li className="flex gap-3">
       <Avatar name={comment.author} className="w-9 h-9 text-sm" />
       <div className="min-w-0">
-        <p className="text-sm font-semibold">{comment.author}</p>
+        <p className="text-sm font-semibold">{comment.author || '익명'}</p>
         <p className="text-xs text-gray-400 mt-0.5">
           {comment.department} · {comment.cohort}
         </p>
@@ -88,8 +108,21 @@ export default function StudyDetailPage() {
 
     async function fetchDetail() {
       try {
-        const data = await getStudyDetail(studyId!);
-        setStudy(data);
+        const rawData = await getStudyDetail(studyId!);
+        
+        // 🌟 백엔드 Enum(PENDING 등) ➔ UI용 한글('개설미정' 등) 자동 매핑 및 방어 처리
+        const formattedData: StudyDetail = {
+          ...rawData,
+          status: SERVER_TO_UI_STATUS[rawData.status] || rawData.status || '개설미정',
+          author: rawData.author || { name: '익명', department: '', cohort: '' },
+          participants: rawData.participants || [],
+          comments: rawData.comments || [],
+          presenters: rawData.presenters || (rawData as unknown as { presenter?: string }).presenter
+            ? [(rawData as unknown as { presenter: string }).presenter]
+            : ['연사 정보 없음'],
+        };
+
+        setStudy(formattedData);
       } catch (err) {
         setError(getServerErrorMessage(err, '릴레이 스터디를 불러오지 못했어요.'));
       } finally {
@@ -110,32 +143,30 @@ export default function StudyDetailPage() {
     setActionError(null);
     try {
       await applyStudy(studyId);
-      setStudy((prev) =>
-        {
-          if (!prev) return prev;
+      setStudy((prev) => {
+        if (!prev) return prev;
 
-          const nextParticipantCount = prev.participantCount + 1;
+        const nextParticipantCount = (prev.participantCount || 0) + 1;
 
-          return {
-            ...prev,
-            status:
-              nextParticipantCount >= CONFIRMED_PARTICIPANT_COUNT && prev.status === '개설미정'
-                ? '개설확정'
-                : prev.status,
-            isApplied: true,
-            participantCount: nextParticipantCount,
-            participants: [
-              {
-                id: `me-${Date.now()}`,
-                name: '양지우',
-                department: '스마트IoT과',
-                cohort: '10기',
-              },
-              ...prev.participants,
-            ],
-          };
-        }
-      );
+        return {
+          ...prev,
+          status:
+            nextParticipantCount >= CONFIRMED_PARTICIPANT_COUNT && prev.status === '개설미정'
+              ? '개설확정'
+              : prev.status,
+          isApplied: true,
+          participantCount: nextParticipantCount,
+          participants: [
+            {
+              id: `me-${Date.now()}`,
+              name: '양지우',
+              department: '스마트IoT과',
+              cohort: '10기',
+            },
+            ...(prev.participants || []),
+          ],
+        };
+      });
     } catch (err) {
       setActionError(getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.'));
     } finally {
@@ -159,8 +190,8 @@ export default function StudyDetailPage() {
         prev
           ? {
               ...prev,
-              comments: [created, ...prev.comments],
-              commentCount: prev.commentCount + 1,
+              comments: [created, ...(prev.comments || [])],
+              commentCount: (prev.commentCount || 0) + 1,
             }
           : prev
       );
@@ -179,9 +210,15 @@ export default function StudyDetailPage() {
 
   const isClosed = study.status === '종료';
   const isDeadlinePassed = isApplicationDeadlinePassed(study.scheduledAt);
-  const isFull = study.participantCount >= study.capacity;
-  const hiddenParticipantCount = study.participantCount - VISIBLE_PARTICIPANTS;
+  const participantCount = study.participantCount ?? 0;
+  const capacity = study.capacity ?? 0;
+  const isFull = participantCount >= capacity;
+  const hiddenParticipantCount = participantCount - VISIBLE_PARTICIPANTS;
   const deadlineText = getApplicationDeadlineText(study.scheduledAt);
+
+  const presentersText = Array.isArray(study.presenters)
+    ? study.presenters.join(', ')
+    : '연사 정보 없음';
 
   return (
     <div>
@@ -196,7 +233,9 @@ export default function StudyDetailPage() {
       <div className="grid grid-cols-[1fr_280px] gap-6 items-start mt-5">
         <div>
           <span
-            className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_BADGE_STYLES[study.status]}`}
+            className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${
+              STATUS_BADGE_STYLES[study.status as StudyStatus] || 'bg-gray-100 text-gray-600'
+            }`}
           >
             {study.status}
           </span>
@@ -204,11 +243,11 @@ export default function StudyDetailPage() {
           <h1 className="text-2xl font-bold mt-3">{study.title}</h1>
 
           <div className="flex items-center gap-3 mt-4">
-            <Avatar name={study.author.name} className="w-10 h-10 text-base" />
+            <Avatar name={study.author?.name} className="w-10 h-10 text-base" />
             <div>
-              <p className="font-semibold">{study.author.name}</p>
+              <p className="font-semibold">{study.author?.name || '익명'}</p>
               <p className="text-sm text-gray-400">
-                {study.author.department} · {study.author.cohort}
+                {study.author?.department} · {study.author?.cohort}
               </p>
             </div>
           </div>
@@ -219,8 +258,8 @@ export default function StudyDetailPage() {
 
           <hr className="my-6 border-gray-200" />
 
-          <h2 className="text-sm font-semibold">참가자 {study.participantCount}명</h2>
-          {study.participants.length === 0 ? (
+          <h2 className="text-sm font-semibold">참가자 {participantCount}명</h2>
+          {!study.participants || study.participants.length === 0 ? (
             <p className="text-sm text-gray-400 mt-3">아직 참가자가 없어요.</p>
           ) : (
             <div className="mt-3 grid grid-cols-2 gap-3">
@@ -253,7 +292,7 @@ export default function StudyDetailPage() {
 
           <hr className="my-6 border-gray-200" />
 
-          <h2 className="text-sm font-semibold">댓글 {study.commentCount}</h2>
+          <h2 className="text-sm font-semibold">댓글 {study.commentCount ?? 0}</h2>
           <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 mt-4">
             <input
               value={commentDraft}
@@ -270,7 +309,7 @@ export default function StudyDetailPage() {
             </button>
           </form>
 
-          {study.comments.length === 0 ? (
+          {!study.comments || study.comments.length === 0 ? (
             <p className="text-sm text-gray-400 mt-4">첫 댓글을 남겨보세요.</p>
           ) : (
             <ul className="mt-4 space-y-5">
@@ -290,14 +329,16 @@ export default function StudyDetailPage() {
                 <Calendar className="w-4 h-4 shrink-0" strokeWidth={1.8} />
                 일시
               </dt>
-              <dd className="font-medium text-right">{study.scheduledAt}</dd>
+              <dd className="font-medium text-right">
+                {study.scheduledAt ? String(study.scheduledAt).replace('T', ' ') : '미정'}
+              </dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="flex items-center gap-2 text-gray-500">
                 <User className="w-4 h-4 shrink-0" strokeWidth={1.8} />
                 연사자
               </dt>
-              <dd className="font-medium text-right">{study.presenters.join(', ')}</dd>
+              <dd className="font-medium text-right">{presentersText}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="flex items-center gap-2 text-gray-500">
@@ -305,7 +346,7 @@ export default function StudyDetailPage() {
                 인원
               </dt>
               <dd className="font-medium text-right">
-                {study.participantCount} / {study.capacity}명
+                {participantCount} / {capacity}명
               </dd>
             </div>
           </dl>
@@ -331,9 +372,7 @@ export default function StudyDetailPage() {
 
           {!isClosed && (
             <p className="text-xs text-gray-400 text-center mt-3">
-              {study.isApplied
-                ? '연사 시작 전에 알려드릴게요.'
-                : deadlineText}
+              {study.isApplied ? '연사 시작 전에 알려드릴게요.' : deadlineText}
             </p>
           )}
         </aside>
