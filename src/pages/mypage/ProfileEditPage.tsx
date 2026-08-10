@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pencil } from 'lucide-react';
 import { getMyProfile, updateMyProfile } from '../../api/userApi';
+import { ACCESS_TOKEN_KEY } from '../../api/client';
 import { 
   DEPARTMENT_OPTIONS, 
   COHORT_OPTIONS, 
@@ -13,13 +14,12 @@ import CustomSelect from '../../components/ui/CustomSelect';
 interface ProfileFormState {
   name: string;
   email: string;
-  department: string; // UI표시용 (예: '스마트IoT과')
-  cohort: string;     // UI표시용 (예: '10기')
+  department: string;
+  cohort: string;  
 }
 
 const EMPTY_FORM: ProfileFormState = { name: '', email: '', department: '', cohort: '' };
 
-// 💡 기수 변환 도우미 함수
 const formatCohortToLabel = (cohort: string | number) => {
   if (!cohort) return '';
   const num = String(cohort).replace(/[^0-9]/g, '');
@@ -29,6 +29,29 @@ const formatCohortToLabel = (cohort: string | number) => {
 const formatCohortToValue = (cohortLabel: string) => {
   return cohortLabel.replace(/[^0-9]/g, '');
 };
+
+function getEmailFromAccessToken(): string {
+  try {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!token) return '';
+
+    const payloadSegment = token.split('.')[1];
+    if (!payloadSegment) return '';
+
+    const base64 = payloadSegment.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((char) => '%' + char.charCodeAt(0).toString(16).padStart(2, '0'))
+        .join('')
+    );
+
+    const payload = JSON.parse(decoded);
+    return typeof payload.sub === 'string' ? payload.sub : '';
+  } catch {
+    return '';
+  }
+}
 
 export default function ProfileEditPage() {
   const navigate = useNavigate();
@@ -47,16 +70,15 @@ export default function ProfileEditPage() {
       try {
         const data = await getMyProfile();
 
-        // 1. 기수: 백엔드의 10 또는 '10' -> '10기'로 변환
         const rawCohort = (data as any).generation ?? data.cohort ?? '';
         const formattedCohort = formatCohortToLabel(rawCohort);
-
-        // 2. 학과: 백엔드의 'SMART_IOT' -> '스마트IoT과'로 변환
         const formattedDept = DEPARTMENT_LABEL_MAP[data.department] || data.department || '';
+
+        const resolvedEmail = data.email || getEmailFromAccessToken();
 
         setForm({
           name: data.name || '',
-          email: data.email || '',
+          email: resolvedEmail,
           department: formattedDept,
           cohort: formattedCohort,
         });
@@ -106,14 +128,13 @@ export default function ProfileEditPage() {
     setError(null);
 
     try {
-      // 💡 저장할 때: UI 한글 라벨 -> 백엔드 전송용 값으로 역변환
       const apiDepartment = DEPARTMENT_API_VALUES[form.department] || form.department;
       const apiCohort = formatCohortToValue(form.cohort);
 
       await updateMyProfile({
         name: form.name,
-        department: apiDepartment, // 'SMART_IOT' 전송
-        cohort: apiCohort,         // '10' 전송
+        department: apiDepartment, 
+        cohort: apiCohort,
       });
       navigate('/mypage');
     } catch {
