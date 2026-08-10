@@ -10,14 +10,14 @@ import type { LayoutContext } from '../../components/layout/Layout';
 
 const STUDIES_PER_PAGE = 6;
 
-// 백엔드 Enum과 프론트 탭 UI 매핑
-const STATUS_MAP: Record<StudyStatus, string> = {
-  '개설미정': 'PENDING',
-  '개설확정': 'CONFIRMED',
-  '종료': 'FINISHED',
+// 백엔드 Enum -> 프론트 UI 한글 텍스트 자동 변환 매핑
+const SERVER_TO_UI_STATUS: Record<string, StudyStatus> = {
+  PENDING: '개설미정',
+  CONFIRMED: '개설확정',
+  FINISHED: '종료',
 };
 
-// 백엔드 API 응답 객체 타입 정의 (any 제거)
+// 백엔드 API 응답 데이터 타입
 interface APIStudyResponse {
   id: number;
   title: string;
@@ -25,7 +25,7 @@ interface APIStudyResponse {
   presenters?: string[];
   scheduledAt?: string;
   capacity?: number;
-  status: string;
+  status: string; // 변환 후 '개설미정' 등 StudyStatus 타입이 들어감
   createdAt?: string;
   participantCount?: number;
   commentCount?: number;
@@ -36,7 +36,6 @@ interface StudyCardProps {
 }
 
 function StudyCard({ study }: StudyCardProps) {
-  // presenters가 배열이면 join, presenter(문자열)로 오면 해당 값 표시
   const presenterText = Array.isArray(study.presenters)
     ? study.presenters.join(', ')
     : study.presenter || '발표자 없음';
@@ -47,6 +46,7 @@ function StudyCard({ study }: StudyCardProps) {
       className="block bg-white border border-gray-200 rounded-xl px-6 pt-6 pb-5 hover:border-[#FFDD86] transition-colors"
     >
       <div className="flex items-center justify-between">
+        {/* 이제 study.status가 '개설미정'으로 뜨게 됩니다 */}
         <span
           className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${
             STATUS_BADGE_STYLES[study.status as StudyStatus] || 'bg-gray-100 text-gray-600'
@@ -101,7 +101,6 @@ export default function HomePage() {
       try {
         const response = await getStudies();
         
-        // 백엔드 응답이 배열인지, 객체 안에 data 배열이 들어있는 구조인지 안전하게 판단
         const rawData = response as unknown;
         let listData: APIStudyResponse[] = [];
 
@@ -116,7 +115,13 @@ export default function HomePage() {
           listData = (rawData as { data: APIStudyResponse[] }).data;
         }
 
-        setStudies(listData);
+        // 🌟 핵심: 백엔드 상태값(PENDING 등)을 UI용 상태값('개설미정' 등)으로 변환
+        const formattedList = listData.map((item) => ({
+          ...item,
+          status: SERVER_TO_UI_STATUS[item.status] || item.status,
+        }));
+
+        setStudies(formattedList);
       } catch (err) {
         setError(getServerErrorMessage(err, '릴레이 스터디를 불러오지 못했어요.'));
       } finally {
@@ -143,9 +148,10 @@ export default function HomePage() {
 
   const keyword = searchQuery.trim().toLowerCase();
 
+  // 이미 status가 '개설미정' 등으로 변환되어 있으므로 direct 비교가 가능합니다!
   const visibleStudies = studies.filter(
     (study) =>
-      study.status === STATUS_MAP[activeStatus] &&
+      study.status === activeStatus &&
       (study.title || '').toLowerCase().includes(keyword)
   );
 
