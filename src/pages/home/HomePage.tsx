@@ -25,9 +25,12 @@ interface APIStudyResponse {
   presenters?: string[];
   scheduledAt?: string;
   capacity?: number;
+  maxParticipants?: number;
   status: string; // 변환 후 '개설미정' 등 StudyStatus 타입이 들어감
   createdAt?: string;
   participantCount?: number;
+  currentParticipants?: number;
+  appliedCount?: number;
   commentCount?: number;
 }
 
@@ -40,13 +43,21 @@ function StudyCard({ study }: StudyCardProps) {
     ? study.presenters.join(', ')
     : study.presenter || '발표자 없음';
 
+  // 🌟 백엔드 필드명(participantCount, currentParticipants, appliedCount) 호환 처리
+  const currentCount =
+    study.participantCount ??
+    study.currentParticipants ??
+    study.appliedCount ??
+    0;
+
+  const maxCapacity = study.capacity ?? study.maxParticipants ?? 0;
+
   return (
     <Link
       to={`/lecture/${study.id}`}
       className="block bg-white border border-gray-200 rounded-xl px-6 pt-6 pb-5 hover:border-[#FFDD86] transition-colors"
     >
       <div className="flex items-center justify-between">
-        {/* 이제 study.status가 '개설미정'으로 뜨게 됩니다 */}
         <span
           className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${
             STATUS_BADGE_STYLES[study.status as StudyStatus] || 'bg-gray-100 text-gray-600'
@@ -75,7 +86,8 @@ function StudyCard({ study }: StudyCardProps) {
       <div className="flex items-center justify-between border-t border-gray-100 mt-8 pt-4 text-sm text-gray-400">
         <span className="flex items-center gap-1.5">
           <Users className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          {study.participantCount ?? 0}/{study.capacity ?? 0}명
+          {/* 🌟 수정된 인원수 출력 부분 */}
+          {currentCount}/{maxCapacity}명
         </span>
         <span className="flex items-center gap-1.5">
           <MessageSquare className="w-4 h-4 shrink-0" strokeWidth={1.8} />
@@ -102,23 +114,29 @@ export default function HomePage() {
         const response = await getStudies();
         
         const rawData = response as unknown;
-        let listData: APIStudyResponse[] = [];
+        let listData: any[] = [];
 
         if (Array.isArray(rawData)) {
-          listData = rawData as APIStudyResponse[];
+          listData = rawData;
         } else if (
           typeof rawData === 'object' &&
           rawData !== null &&
           'data' in rawData &&
           Array.isArray((rawData as { data: unknown }).data)
         ) {
-          listData = (rawData as { data: APIStudyResponse[] }).data;
+          listData = (rawData as { data: any[] }).data;
         }
 
-        // 🌟 핵심: 백엔드 상태값(PENDING 등)을 UI용 상태값('개설미정' 등)으로 변환
+        // 백엔드 데이터 변환 및 안전 필드 매핑
         const formattedList = listData.map((item) => ({
           ...item,
           status: SERVER_TO_UI_STATUS[item.status] || item.status,
+          participantCount:
+            item.participantCount ??
+            item.currentParticipants ??
+            item.appliedCount ??
+            0,
+          capacity: item.capacity ?? item.maxParticipants ?? 0,
         }));
 
         setStudies(formattedList);
@@ -148,7 +166,6 @@ export default function HomePage() {
 
   const keyword = searchQuery.trim().toLowerCase();
 
-  // 이미 status가 '개설미정' 등으로 변환되어 있으므로 direct 비교가 가능합니다!
   const visibleStudies = studies.filter(
     (study) =>
       study.status === activeStatus &&
