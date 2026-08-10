@@ -8,9 +8,11 @@ export default function NoticeFormPage() {
   const isEditMode = Boolean(noticeId);
   const navigate = useNavigate();
 
+  // 🛠️ 어드민 권한을 다양한 경로(AuthContext, user, localStorage)에서 탐색하여 유연하게 판별
   const auth = useAuth() as Record<string, any>;
   const user = auth?.user || auth?.userInfo || auth;
-  const isAdmin = user?.role === 'ADMIN';
+  const role = user?.role || auth?.role || localStorage.getItem('role');
+  const isAdmin = role === 'ADMIN';
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -18,11 +20,14 @@ export default function NoticeFormPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 관리자가 아니면 접근 차단 (버튼 숨김과 별개로 라우트 자체도 보호)
+  // 관리자가 아니면 접근 차단 (페이지 진입 제한)
   useEffect(() => {
-    if (!isAdmin) navigate('/notice');
+    if (!isAdmin) {
+      navigate('/notice');
+    }
   }, [isAdmin, navigate]);
 
+  // 수정 모드일 때 기존 공지 데이터 조회
   useEffect(() => {
     if (!isEditMode || !noticeId) return;
 
@@ -59,17 +64,23 @@ export default function NoticeFormPage() {
         navigate(newId ? `/notice/${newId}` : '/notice');
       }
     } catch {
-      setError(isEditMode ? '수정에 실패했어요. 다시 시도해주세요.' : '등록에 실패했어요. 다시 시도해주세요.');
+      setError(
+        isEditMode
+          ? '수정에 실패했어요. 다시 시도해주세요.'
+          : '등록에 실패했어요. 다시 시도해주세요.'
+      );
       setIsSubmitting(false);
     }
   }
 
   if (!isAdmin) return null;
-  if (isLoading) return <p className="text-gray-500">불러오는 중...</p>;
+  if (isLoading) return <p className="text-gray-500 py-10 text-center">불러오는 중...</p>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold">{isEditMode ? '공지사항 수정' : '공지사항 작성'}</h1>
+      <h1 className="text-2xl font-bold">
+        {isEditMode ? '공지사항 수정' : '공지사항 작성'}
+      </h1>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
