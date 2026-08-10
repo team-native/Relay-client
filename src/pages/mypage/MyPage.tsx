@@ -6,11 +6,19 @@ import { STATUS_BADGE_STYLES } from '../../constants/studyStatus';
 import { getDepartmentLabel } from '../../constants/profileOptions';
 import { useAuth } from '../../context/useAuth';
 import type { UserProfile } from '../../types/user';
+import type { StudyStatus } from '../../types/study';
 
 const SETTINGS_ITEMS = [
   { icon: Pencil, label: '프로필 수정', path: '/mypage/profile' },
   { icon: Lock, label: '비밀번호 변경', path: '/mypage/password' },
 ] as const;
+
+// 🌟 백엔드 Enum -> 프론트 UI 한글 텍스트 자동 변환 매핑
+const SERVER_TO_UI_STATUS: Record<string, StudyStatus> = {
+  PENDING: '개설미정',
+  CONFIRMED: '개설확정',
+  FINISHED: '종료',
+};
 
 export default function MyPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -67,7 +75,16 @@ export default function MyPage() {
   const generationText = rawGeneration ? `${rawGeneration}기` : '';
 
   // 수강 목록 안전하게 바인딩 (enrolledLectures 또는 lectures 대응)
-  const enrolledList = (profile as any).enrolledLectures || (profile as any).lectures || [];
+  const rawEnrolledList = (profile as any).enrolledLectures || (profile as any).lectures || [];
+
+  // 🌟 PENDING -> '개설미정' 상태값 변환 적용
+  const enrolledList = rawEnrolledList.map((course: any) => {
+    const uiStatus = SERVER_TO_UI_STATUS[course.status] || course.status || '개설미정';
+    return {
+      ...course,
+      uiStatus,
+    };
+  });
 
   return (
     <div>
@@ -79,7 +96,6 @@ export default function MyPage() {
           <div>
             <p className="font-semibold text-lg">{profile.name}</p>
             <p className="text-sm text-gray-400">
-              {/* SMART_IOT -> 스마트IoT과 변환 및 10 -> 10기 바인딩 */}
               {getDepartmentLabel(profile.department)}{generationText ? ` · ${generationText}` : ''}
             </p>
           </div>
@@ -97,16 +113,24 @@ export default function MyPage() {
       ) : (
         <div className="grid grid-cols-3 gap-4">
           {enrolledList.map((course: any) => (
-            <div key={course.id} className="bg-white border border-gray-200 rounded-xl p-4">
-              <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${STATUS_BADGE_STYLES[course.status as keyof typeof STATUS_BADGE_STYLES] || 'bg-gray-100 text-gray-600'}`}>
-                {course.status}
+            <Link
+              key={course.id}
+              to={`/lecture/${course.id}`}
+              className="block bg-white border border-gray-200 rounded-xl p-4 hover:border-[#FFDD86] transition-colors"
+            >
+              <span
+                className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${
+                  STATUS_BADGE_STYLES[course.uiStatus as StudyStatus] || 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {course.uiStatus}
               </span>
               <p className="font-semibold mt-2">{course.title}</p>
               <div className="flex items-center gap-1.5 text-sm text-gray-400 mt-2">
                 <Calendar className="w-3.5 h-3.5 shrink-0" strokeWidth={1.8} />
-                {course.scheduledAt || course.date}
+                {course.scheduledAt ? String(course.scheduledAt).replace('T', ' ') : course.date || ''}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

@@ -68,15 +68,17 @@ function isApplicationDeadlinePassed(scheduledAt?: string) {
   return deadline ? deadline.getTime() <= Date.now() : false;
 }
 
-// 댓글 아이템 (백엔드 필드 호환)
+// 댓글 아이템 (백엔드 댓글 응답 구조 완벽 보완)
 function CommentItem({ comment }: { comment: any }) {
-  const authorName = comment.authorName || comment.author || '익명';
-  const department = comment.authorDepartment || comment.department || '';
+  const authorName = comment.authorName || comment.author?.name || comment.author || '익명';
+  const department = comment.authorDepartment || comment.author?.department || comment.department || '';
   const cohort = comment.authorGeneration
     ? `${comment.authorGeneration}기`
-    : comment.cohort
-      ? `${comment.cohort}`
-      : '';
+    : comment.author?.cohort
+      ? `${comment.author.cohort}`
+      : comment.cohort
+        ? `${comment.cohort}`
+        : '';
   const createdAt = comment.timeAgo || comment.createdAt || '';
 
   return (
@@ -124,9 +126,11 @@ export default function StudyDetailPage() {
 
         const singlePresenter = rawData.presenter;
 
-        // 🌟 백엔드의 다양한 참가자 목록/인원수/신청여부 필드 호환 처리
+        // 🌟 백엔드 댓글 목록 필드명 방어 매핑 (comments, commentList 등)
+        const rawComments = rawData.comments || rawData.commentList || [];
+
+        // 🌟 참가자 목록 데이터 매핑
         const rawParticipants = rawData.participants || rawData.enrollments || rawData.appliedUsers || [];
-        
         const mappedParticipants = rawParticipants.map((p: any, idx: number) => ({
           id: p.id || p.userId || `p-${idx}`,
           name: p.name || p.authorName || p.userName || '참가자',
@@ -149,12 +153,11 @@ export default function StudyDetailPage() {
           scheduledAt: rawData.scheduledAt,
           createdAt: rawData.createdAt,
           
-          // 백엔드의 isApplied / applied 여부 반영
           isApplied: Boolean(rawData.isApplied ?? rawData.applied ?? false),
           
           capacity: rawData.capacity ?? rawData.maxParticipants ?? 0,
           participantCount: actualParticipantCount,
-          commentCount: rawData.commentCount ?? rawData.comments?.length ?? 0,
+          commentCount: rawData.commentCount ?? rawComments.length ?? 0,
           
           author: rawData.author || {
             name: singlePresenter || '익명',
@@ -162,7 +165,10 @@ export default function StudyDetailPage() {
             cohort: '',
           },
           participants: mappedParticipants,
-          comments: rawData.comments || [],
+          
+          // 🌟 새로고침 시에도 저장되는 댓글 목록
+          comments: rawComments,
+
           presenters:
             rawData.presenters && rawData.presenters.length > 0
               ? rawData.presenters
@@ -236,7 +242,8 @@ export default function StudyDetailPage() {
     try {
       const response = await createStudyComment(studyId, commentDraft.trim());
       
-      const created = (response as any)?.data || response;
+      const responseObj = response as any;
+      const created = responseObj?.data || responseObj;
 
       setStudy((prev) =>
         prev
