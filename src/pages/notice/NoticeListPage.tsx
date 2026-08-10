@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { getNotices } from '../../api/noticeApi';
+import { useAuth } from '../../context/useAuth';
 import type { Notice } from '../../types/notice';
 import type { LayoutContext } from '../../components/layout/Layout';
 
@@ -8,18 +9,19 @@ export default function NoticeListPage() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const navigate = useNavigate();
   const { searchQuery, setSearchQuery } = useOutletContext<LayoutContext>();
+
+  // 🛠️ 타입 단언 적용 (AuthContextValue 타입 미비 해결)
+  const auth = useAuth() as Record<string, any>;
+  const user = auth?.user || auth?.userInfo || auth;
+  const isAdmin = user?.role === 'ADMIN';
 
   useEffect(() => {
     async function fetchNotices() {
       try {
         setIsLoading(true);
-        // 💡 res를 any 타입으로 단언하여 'never' 에러를 방지합니다.
         const res: any = await getNotices();
-
-        // 💡 백엔드 응답이 res 자체 배열인지, res.data 배열인지 둘 다 안전하게 검사
         const noticeList = Array.isArray(res)
           ? res
           : Array.isArray(res?.data)
@@ -42,10 +44,9 @@ export default function NoticeListPage() {
     return () => setSearchQuery('');
   }, [setSearchQuery]);
 
-  if (isLoading) return <p className="text-gray-500 py-10 text-center">불러오는 중...</p>;
-  if (error) return <p className="text-red-500 py-10 text-center">{error}</p>;
+  if (isLoading) return <p className="text-gray-500">불러오는 중...</p>;
+  if (error) return <p className="text-red-500">{error}</p>;
 
-  // 검색어 필터링
   const filteredNotices = notices.filter(
     (notice) =>
       notice?.title?.toLowerCase().includes(searchQuery.trim().toLowerCase())
@@ -53,8 +54,23 @@ export default function NoticeListPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold">공지사항</h1>
-      <p className="text-gray-400 mt-1">운영팀이 전달하는 소식을 확인하세요.</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">공지사항</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            운영팀이 전달하는 소식을 확인하세요.
+          </p>
+        </div>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => navigate('/notice/new')}
+            className="shrink-0 h-11 px-5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:brightness-110 transition"
+          >
+            공지사항 작성
+          </button>
+        )}
+      </div>
 
       <div className="mt-6 bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
         {filteredNotices.length === 0 ? (
@@ -76,7 +92,6 @@ export default function NoticeListPage() {
                   </span>
                 )}
               </div>
-              {/* 💡 notice.date가 없으면 (notice as any).createdAt에 접근하도록 안전하게 처리 */}
               <p className="text-sm text-gray-400 mt-1">
                 {notice.date || (notice as any).createdAt}
               </p>

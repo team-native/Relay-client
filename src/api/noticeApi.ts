@@ -21,3 +21,18 @@ export async function getNoticeDetail(noticeId: string): Promise<NoticeDetail> {
   const res = await apiClient.get<NoticeDetail>(`/api/notice/${noticeId}`);
   return res.data;
 }
+
+export async function createNotice(payload: { title: string; content: string }) {
+  const response = await apiClient.post('/api/notice/new', payload);
+  return response.data;
+}
+
+export async function updateNotice(noticeId: string, payload: { title: string; content: string }) {
+  const response = await apiClient.patch(`/api/notice/${noticeId}`, payload);
+  return response.data;
+}
+
+export async function deleteNotice(noticeId: string) {
+  const response = await apiClient.delete(`/api/notice/${noticeId}`);
+  return response.data;
+}
