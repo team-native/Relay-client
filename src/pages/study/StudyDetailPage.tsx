@@ -112,7 +112,11 @@ export default function StudyDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const { showToast } = useOutletContext<LayoutContext>();
-  const { isLoggedIn } = useAuth();
+  
+  // TypeScript AuthContextValue 에러 우회 처리
+  const auth = useAuth() as Record<string, any>;
+  const isLoggedIn = Boolean(auth?.isLoggedIn);
+  const user = auth?.user || auth?.userInfo || auth?.profile || null;
 
   useEffect(() => {
     if (!studyId) return;
@@ -122,13 +126,11 @@ export default function StudyDetailPage() {
         const detailRes = await getStudyDetail(studyId!);
         const rawData = (detailRes as any)?.data || detailRes || {};
 
-        // 1. 상세 API 데이터에 댓글이 포함되어 있는지 확인
+        // 1. 댓글 데이터 방어적 파싱
         let commentsData: any[] = rawData.comments || rawData.commentList || [];
 
-        // 2. 상세 응답에 댓글이 없거나 비어있을 경우 별도 댓글 API 호출 (인증헤더 포함)
         if (!commentsData.length) {
           try {
-            // 로컬스토리지 토큰 자동 감지 (JWT 토큰)
             const token =
               localStorage.getItem('token') ||
               localStorage.getItem('accessToken') ||
@@ -140,7 +142,7 @@ export default function StudyDetailPage() {
             };
 
             if (token) {
-              const cleanToken = token.replace(/^"(.*)"$/, '$1'); // 문자열에 쌍따옴표 들어간 경우 제거
+              const cleanToken = token.replace(/^"(.*)"$/, '$1');
               headers['Authorization'] = cleanToken.startsWith('Bearer ')
                 ? cleanToken
                 : `Bearer ${cleanToken}`;
@@ -180,7 +182,24 @@ export default function StudyDetailPage() {
             }))
           : [];
 
-        // 인원수 필드명 방어
+        // 신청 여부(isApplied) 감지
+        let isUserApplied = Boolean(
+          rawData.isApplied ??
+            rawData.applied ??
+            rawData.isEnrolled ??
+            rawData.enrolled ??
+            rawData.isAppliedUser ??
+            false
+        );
+
+        // 만약 서버에서 boolean을 안 줬다면, 참가자 목록에서 현재 접속 유저 찾기
+        if (!isUserApplied && user && mappedParticipants.length > 0) {
+          isUserApplied = mappedParticipants.some(
+            (p) => String(p.id) === String(user.id) || p.name === user.name
+          );
+        }
+
+        // 인원수 감지
         const actualParticipantCount =
           rawData.applicantCount ??
           rawData.enrollmentCount ??
@@ -189,15 +208,6 @@ export default function StudyDetailPage() {
           rawData.appliedCount ??
           mappedParticipants.length ??
           0;
-
-        // 이미 신청했는지 여부 방어
-        const isUserApplied = Boolean(
-          rawData.isApplied ??
-            rawData.applied ??
-            rawData.isEnrolled ??
-            rawData.enrolled ??
-            false
-        );
 
         const formattedData: StudyDetail = {
           id: rawData.id ?? studyId,
@@ -238,7 +248,7 @@ export default function StudyDetailPage() {
     }
 
     fetchDetailAndComments();
-  }, [studyId]);
+  }, [studyId, user]);
 
   async function handleApply() {
     if (!studyId || !study) return;
@@ -266,8 +276,16 @@ export default function StudyDetailPage() {
           participantCount: nextParticipantCount,
         };
       });
-    } catch (err) {
-      setActionError(getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.'));
+    } catch (err: any) {
+      const errorMsg = getServerErrorMessage(err, '참가 신청에 실패했어요. 다시 시도해주세요.');
+      
+      // 이미 신청한 강의(409) 에러 발생 시 프론트 상태를 '신청 완료'로 자동 변경
+      if (errorMsg.includes('이미 신청') || err?.response?.status === 409) {
+        setStudy((prev) => (prev ? { ...prev, isApplied: true } : prev));
+        setActionError(null);
+      } else {
+        setActionError(errorMsg);
+      }
     } finally {
       setIsApplying(false);
     }
